@@ -20,15 +20,15 @@ from src.ui.components import display_chat_history, create_chat_input
 
 # Set up Streamlit page config
 st.set_page_config(
-    page_title="Data Visualization Assistant",
+    page_title="Hack Your District 2025",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # Set up Streamlit page header
-st.title("Data Visualization Assistant")
-st.caption("Powered by Streamlit, Seaborn, and LangChain")
+st.title("Hack Your District 2025")
+st.caption("Data Visualization Assistant")
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # Initialize tools and agent in session state if not already present
@@ -105,7 +105,6 @@ with col2:
         "Show a histogram of the first numeric column",
         "Create a scatter plot comparing the first two numeric columns",
         "Plot a correlation heatmap for all numeric columns",
-        "Generate a line plot showing trends over time"
     ]
     
     for i, example in enumerate(examples):

@@ -353,12 +353,12 @@ The overall trend appears to be {trend} over the range of {x_column}.
     except Exception as e:
         return f"Error creating line plot: {str(e)}"
 
-def plot_heatmap(columns: List[str], title: str = "Correlation Heatmap") -> str:
+def plot_heatmap(columns: List[str] | str, title: str = "Correlation Heatmap") -> str:
     """
     Create a correlation heatmap using Seaborn and display it in Streamlit.
     
     Args:
-        columns (List[str]): List of columns to include in the heatmap
+        columns (Union[List[str], str]): List of columns or comma-separated string of columns
         title (str): Plot title
         
     Returns:
@@ -370,26 +370,20 @@ def plot_heatmap(columns: List[str], title: str = "Correlation Heatmap") -> str:
     try:
         df = st.session_state.dataset
         
-        # Check if columns contains a JSON structure with parameters
-        if isinstance(columns, str) and '{' in columns and '}' in columns:
-            params = parse_json_input(columns)
-            if 'columns' in params:
-                columns = params['columns']
-            if 'title' in params:
-                title = params['title']
-        
-        # Handle case where a single string is passed instead of a list
+        # Convert input to list of columns
         if isinstance(columns, str):
-            # Try to parse as comma-separated list or use all numeric columns if "all" is specified
-            clean_col = clean_column_name(columns)
-            if clean_col.lower() == "all" or clean_col.lower() == "all numeric columns":
+            # Remove any quotes that might be present
+            columns = columns.strip('"\'')
+            
+            # Handle 'all' case
+            if columns.lower() == "all":
                 columns = df.select_dtypes(include=['number']).columns.tolist()
             else:
                 # Split by comma and clean each column name
-                columns = [clean_column_name(col.strip()) for col in clean_col.split(',')]
-        else:
-            # Clean each column name in the list
-            columns = [clean_column_name(col) for col in columns]
+                columns = [col.strip() for col in columns.split(',')]
+        
+        # Clean column names
+        columns = [col.strip('"\' ') for col in columns]
         
         # Validate columns
         for col in columns:
@@ -397,10 +391,7 @@ def plot_heatmap(columns: List[str], title: str = "Correlation Heatmap") -> str:
                 return f"Error: Column '{col}' not found in dataset. Available columns: {', '.join(df.columns)}"
         
         # Ensure we're only using numeric columns
-        numeric_cols = []
-        for col in columns:
-            if pd.api.types.is_numeric_dtype(df[col]):
-                numeric_cols.append(col)
+        numeric_cols = [col for col in columns if pd.api.types.is_numeric_dtype(df[col])]
         
         if not numeric_cols:
             return "Error: None of the specified columns are numeric. Correlation heatmap requires numeric data."
@@ -423,15 +414,12 @@ def plot_heatmap(columns: List[str], title: str = "Correlation Heatmap") -> str:
         # Display the plot in Streamlit
         st.pyplot(fig)
         
-        # Find strongest positive and negative correlations
-        corr_pairs = []
-        for i in range(len(numeric_cols)):
-            for j in range(i+1, len(numeric_cols)):
-                corr_pairs.append((
-                    numeric_cols[i], 
-                    numeric_cols[j], 
-                    corr_matrix.iloc[i, j]
-                ))
+        # Find strongest correlations
+        corr_pairs = [
+            (numeric_cols[i], numeric_cols[j], corr_matrix.iloc[i, j])
+            for i in range(len(numeric_cols))
+            for j in range(i+1, len(numeric_cols))
+        ]
         
         corr_pairs.sort(key=lambda x: abs(x[2]), reverse=True)
         
@@ -441,7 +429,15 @@ def plot_heatmap(columns: List[str], title: str = "Correlation Heatmap") -> str:
         if corr_pairs:
             insights += "**Strongest correlations:**\n"
             for col1, col2, corr in corr_pairs[:3]:
-                insights += f"- {col1} and {col2}: {corr:.4f} ({('strong positive' if corr > 0.7 else 'moderate positive' if corr > 0.3 else 'weak positive') if corr > 0 else ('strong negative' if corr < -0.7 else 'moderate negative' if corr < -0.3 else 'weak negative')})\n"
+                strength = (
+                    'strong positive' if corr > 0.7 else
+                    'moderate positive' if corr > 0.3 else
+                    'weak positive' if corr > 0 else
+                    'strong negative' if corr < -0.7 else
+                    'moderate negative' if corr < -0.3 else
+                    'weak negative'
+                )
+                insights += f"- {col1} and {col2}: {corr:.4f} ({strength})\n"
         
         return insights
     except Exception as e:

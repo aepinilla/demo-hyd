@@ -72,7 +72,13 @@ def heatmap_wrapper(input_str):
     
     This wrapper helps the agent use the heatmap tool more easily by accepting
     a string input that can be 'all' or a comma-separated list of columns.
+    
+    Args:
+        input_str (str): Either 'all' for all numeric columns, or a comma-separated
+                         list of column names (e.g. 'col1,col2,col3')
     """
+    # Remove any surrounding quotes that might cause issues
+    input_str = input_str.strip('"\'')
     return plot_heatmap(input_str)
 
 def get_tools() -> List[StructuredTool]:
@@ -116,7 +122,7 @@ def get_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=heatmap_wrapper,
             name="plot_heatmap",
-            description="Create a correlation heatmap to visualize relationships between multiple variables. Use 'all' for all numeric columns or specify columns as a list or comma-separated string.",
+            description="Create a correlation heatmap to visualize relationships between numeric variables. Use 'all' for all numeric columns, or provide a comma-separated list like 'col1,col2,col3'. Do not use quotes around column names.",
             args_schema=PlotHeatmapSimpleInput,
             return_direct=False
         )
