@@ -26,6 +26,19 @@ def load_dataset(file_path: str) -> str:
         str: Information about the loaded dataset
     """
     try:
+        # Clean the file path
+        if isinstance(file_path, str):
+            file_path = clean_column_name(file_path)
+        
+        # Special case for example datasets
+        if file_path.lower() == "example" or file_path.lower() == "sample":
+            import os
+            example_path = os.path.join("examples", "sample_data.csv")
+            if os.path.exists(example_path):
+                file_path = example_path
+            else:
+                return "Error: Example dataset not found. Please upload your own CSV file."
+        
         if not file_path.endswith('.csv'):
             return "Error: Only CSV files are supported for visualization"
             
@@ -74,6 +87,22 @@ def plot_histogram(column: str, bins: int = 10, title: str = "Histogram") -> str
     try:
         df = st.session_state.dataset
         
+        # Check if column contains a JSON structure with parameters
+        if isinstance(column, str) and '{' in column and '}' in column:
+            params = parse_json_input(column)
+            if 'column' in params:
+                column = params['column']
+            if 'bins' in params:
+                try:
+                    bins = int(params['bins'])
+                except:
+                    pass
+            if 'title' in params:
+                title = params['title']
+        
+        # Clean the column name
+        column = clean_column_name(column)
+        
         if column not in df.columns:
             return f"Error: Column '{column}' not found in dataset. Available columns: {', '.join(df.columns)}"
         
@@ -107,6 +136,57 @@ def plot_histogram(column: str, bins: int = 10, title: str = "Histogram") -> str
     except Exception as e:
         return f"Error creating histogram: {str(e)}"
 
+def parse_json_input(input_str):
+    """Parse a JSON string input and return a dictionary of parameters"""
+    if not isinstance(input_str, str):
+        return {}
+        
+    # Remove quotes, newlines, and extra spaces
+    clean_input = input_str.strip('"\'\'\n\r ')
+    
+    # Check if the input contains JSON-like formatting
+    if '{' in clean_input and '}' in clean_input:
+        import json
+        try:
+            # Try to parse as JSON
+            json_data = json.loads(clean_input)
+            if isinstance(json_data, dict):
+                return json_data
+        except:
+            # If JSON parsing fails, try a simpler extraction
+            import re
+            # Extract all key-value pairs
+            pairs = re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', clean_input)
+            if pairs:
+                return {key: value for key, value in pairs}
+    
+    return {}
+
+def clean_column_name(column):
+    """Helper function to clean column names from various input formats"""
+    if not isinstance(column, str):
+        return column
+        
+    # Remove quotes, newlines, and extra spaces
+    clean_column = column.strip('"\'\'\n\r ')
+    
+    # Check if the column name contains JSON-like formatting
+    if '{' in clean_column and '}' in clean_column:
+        # Try to parse as JSON and extract the column name
+        params = parse_json_input(clean_column)
+        
+        # Look for common column name keys
+        for key in ['column', 'x_column', 'y_column']:
+            if key in params:
+                return params[key]
+                
+        # If no specific column key found, return the first string value
+        for value in params.values():
+            if isinstance(value, str):
+                return value
+    
+    return clean_column
+
 def plot_scatter(x_column: str, y_column: str, hue_column: Optional[str] = None, 
                  title: str = "Scatter Plot") -> str:
     """
@@ -126,6 +206,24 @@ def plot_scatter(x_column: str, y_column: str, hue_column: Optional[str] = None,
     
     try:
         df = st.session_state.dataset
+        
+        # Check if x_column contains a JSON structure with both x and y columns
+        if isinstance(x_column, str) and '{' in x_column and '}' in x_column:
+            params = parse_json_input(x_column)
+            if 'x_column' in params:
+                x_column = params['x_column']
+            if 'y_column' in params:
+                y_column = params['y_column']
+            if 'hue_column' in params:
+                hue_column = params['hue_column']
+            if 'title' in params:
+                title = params['title']
+        
+        # Clean column names
+        x_column = clean_column_name(x_column)
+        y_column = clean_column_name(y_column)
+        if hue_column is not None:
+            hue_column = clean_column_name(hue_column)
         
         # Validate columns
         for col in [x_column, y_column]:
@@ -182,6 +280,20 @@ def plot_line(x_column: str, y_column: str, title: str = "Line Plot") -> str:
     try:
         df = st.session_state.dataset
         
+        # Check if x_column contains a JSON structure with both x and y columns
+        if isinstance(x_column, str) and '{' in x_column and '}' in x_column:
+            params = parse_json_input(x_column)
+            if 'x_column' in params:
+                x_column = params['x_column']
+            if 'y_column' in params:
+                y_column = params['y_column']
+            if 'title' in params:
+                title = params['title']
+        
+        # Clean column names
+        x_column = clean_column_name(x_column)
+        y_column = clean_column_name(y_column)
+        
         # Validate columns
         for col in [x_column, y_column]:
             if col not in df.columns:
@@ -237,6 +349,27 @@ def plot_heatmap(columns: List[str], title: str = "Correlation Heatmap") -> str:
     
     try:
         df = st.session_state.dataset
+        
+        # Check if columns contains a JSON structure with parameters
+        if isinstance(columns, str) and '{' in columns and '}' in columns:
+            params = parse_json_input(columns)
+            if 'columns' in params:
+                columns = params['columns']
+            if 'title' in params:
+                title = params['title']
+        
+        # Handle case where a single string is passed instead of a list
+        if isinstance(columns, str):
+            # Try to parse as comma-separated list or use all numeric columns if "all" is specified
+            clean_col = clean_column_name(columns)
+            if clean_col.lower() == "all" or clean_col.lower() == "all numeric columns":
+                columns = df.select_dtypes(include=['number']).columns.tolist()
+            else:
+                # Split by comma and clean each column name
+                columns = [clean_column_name(col.strip()) for col in clean_col.split(',')]
+        else:
+            # Clean each column name in the list
+            columns = [clean_column_name(col) for col in columns]
         
         # Validate columns
         for col in columns:
