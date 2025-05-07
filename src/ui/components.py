@@ -16,8 +16,9 @@ def display_chat_history(messages: List[Dict[str, str]]) -> None:
     Args:
         messages (List[Dict[str, str]]): Chat history to display
     """
+    # Filter out system messages and display only user/assistant messages
     for message in messages:
-        if message["role"] != "system":
+        if message["role"] in ["user", "assistant"]:
             avatar = USER_AVATAR if message["role"] == "user" else BOT_AVATAR
             with st.chat_message(message["role"], avatar=avatar):
                 st.markdown(message["content"])

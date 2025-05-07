@@ -8,7 +8,7 @@ from typing import List, Optional
 from langchain.tools import StructuredTool
 from pydantic.v1 import BaseModel, Field
 
-from src.utils.visualization import load_dataset, plot_histogram, plot_scatter, plot_line, plot_heatmap
+from src.utils.visualization import load_dataset, plot_histogram, plot_scatter, plot_line, plot_heatmap, get_column_types
 
 # Define input schemas for visualization tools
 class LoadDataInput(BaseModel):
@@ -47,6 +47,10 @@ class PlotScatterSimpleInput(BaseModel):
 class PlotHeatmapSimpleInput(BaseModel):
     """Input schema for heatmap with simplified interface."""
     input_str: str = Field(..., description="Comma-separated list of columns or 'all' for all numeric columns")
+
+class GetColumnTypesInput(BaseModel):
+    """Input schema for getting column types."""
+    columns: Optional[str] = Field(None, description="Optional comma-separated list of columns to check. If not provided, checks all columns.")
 
 # Helper functions for tool wrappers
 
@@ -97,6 +101,13 @@ def get_tools() -> List[StructuredTool]:
             return_direct=False
         ),
         StructuredTool.from_function(
+            func=get_column_types,
+            name="get_column_types",
+            description="Get detailed information about column data types and basic statistics. Use this before plotting to ensure you're working with the right data types.",
+            args_schema=GetColumnTypesInput,
+            return_direct=False
+        ),
+        StructuredTool.from_function(
             func=plot_histogram,
             name="plot_histogram",
             description="Create a histogram to visualize the distribution of a numerical column.",
@@ -122,7 +133,7 @@ def get_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=heatmap_wrapper,
             name="plot_heatmap",
-            description="Create a correlation heatmap to visualize relationships between numeric variables. Use 'all' for all numeric columns, or provide a comma-separated list like 'col1,col2,col3'. Do not use quotes around column names.",
+            description="Create a correlation heatmap to visualize relationships between numeric variables. First use get_column_types to identify numeric columns, then use 'all' for all numeric columns, or provide a comma-separated list.",
             args_schema=PlotHeatmapSimpleInput,
             return_direct=False
         )

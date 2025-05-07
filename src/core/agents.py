@@ -50,7 +50,7 @@ def create_agent_executor(tools, verbose=True):
 
     When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
     ```
-    Thought: I know the answer
+    Thought: I am ready to answer the question
     Final Answer: the final answer to the human's question
     ```
 

@@ -1,0 +1,44 @@
+/* Reset all element containers */
+.element-container {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Hide system prompt messages */
+.stChatMessage:has(div[data-testid="stChatMessageContent"]:contains("System:")) {
+    display: none !important;
+}
+
+/* Main container styles */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* Logo section styles */
+.logo-section {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.logo-section img {
+    width: 250px;
+    height: auto;
+}
+
+/* Make header transparent */
+.stApp > header {
+    background-color: transparent;
+}
+
+/* Remove specific Streamlit container styles */
+.st-emotion-cache-17lr0tt {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Ensure proper spacing for content */
+.content-section {
+    margin-top: 0rem;
+}

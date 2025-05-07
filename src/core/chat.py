@@ -34,18 +34,22 @@ def initialize_chat_history() -> List[Dict[str, str]]:
     Returns:
         List[Dict[str, str]]: Initial chat history with system message
     """
-    # Initialize both traditional dict format and LangChain format
+    # Initialize chat history
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = get_chat_history()
         
+    # Initialize messages list if not present
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        
+    # Add system message only to LangChain history, not to display messages
     if len(st.session_state.chat_history.messages) == 0:
-        # Add system message to LangChain history
         st.session_state.chat_history.add_message(
             SystemMessage(content=SYSTEM_PROMPT)
         )
     
-    # Return as dict format for compatibility
-    return [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Return empty list for display
+    return []
 
 def add_message_to_history(history: List[Dict[str, str]], role: str, content: str) -> List[Dict[str, str]]:
     """

@@ -26,24 +26,36 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Set up Streamlit page header
-st.title("Hack Your District 2025")
-st.caption("Data Visualization Assistant")
-st.markdown("<hr>", unsafe_allow_html=True)
+# Load custom CSS
+with open(".streamlit/custom.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Initialize tools and agent in session state if not already present
+# Create main container
+with st.container():
+    # Logo section
+    st.markdown('<div class="logo-section">', unsafe_allow_html=True)
+    st.image("src/ui/logos/tu-berlin-logo-long-red.svg")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Header section
+    st.title("Hack Your District 2025")
+    st.caption("Data Visualization Assistant")
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+# Initialize tools and agent
 if "agent_executor" not in st.session_state:
     tools = get_tools()
     st.session_state.agent_executor = create_agent_executor(tools)
 
-# Initialize session state for messages and dataset
+# Initialize session states
 if "messages" not in st.session_state:
     st.session_state.messages = initialize_chat_history()
 
 if "dataset" not in st.session_state:
     st.session_state.dataset = None
 
-# Display two-column layout
+# Main content section
+st.markdown('<div class="content-section">', unsafe_allow_html=True)
 col1, col2 = st.columns([3, 2])
 
 with col2:

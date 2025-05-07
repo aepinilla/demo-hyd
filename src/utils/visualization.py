@@ -300,7 +300,7 @@ def plot_line(x_column: str, y_column: str, title: str = "Line Plot") -> str:
     try:
         df = st.session_state.dataset
         
-        # Check if x_column contains a JSON structure with both x and y columns
+        # Check if x_column contains a JSON structure with parameters
         if isinstance(x_column, str) and '{' in x_column and '}' in x_column:
             params = parse_json_input(x_column)
             if 'x_column' in params:
@@ -310,41 +310,44 @@ def plot_line(x_column: str, y_column: str, title: str = "Line Plot") -> str:
             if 'title' in params:
                 title = params['title']
         
-        # Clean column names
+        # Clean the column names
         x_column = clean_column_name(x_column)
         y_column = clean_column_name(y_column)
         
         # Validate columns
-        for col in [x_column, y_column]:
-            if col not in df.columns:
-                return f"Error: Column '{col}' not found in dataset. Available columns: {', '.join(df.columns)}"
+        if x_column not in df.columns:
+            return f"Error: Column '{x_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
+        if y_column not in df.columns:
+            return f"Error: Column '{y_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
         
         # Create a new figure
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Sort the dataframe by x_column to ensure proper line plot
-        df_sorted = df.sort_values(by=x_column)
-        
         # Create the line plot
-        sns.lineplot(data=df_sorted, x=x_column, y=y_column, ax=ax)
+        sns.lineplot(data=df, x=x_column, y=y_column, ax=ax)
         
         # Set title and labels
         ax.set_title(title)
+        ax.set_xlabel(x_column)
+        ax.set_ylabel(y_column)
         
         # Display the plot in Streamlit
         st.pyplot(fig)
         
-        # Calculate trend (positive, negative, or flat)
-        first_y = df_sorted.iloc[0][y_column]
-        last_y = df_sorted.iloc[-1][y_column]
-        trend = "increasing" if last_y > first_y else "decreasing" if last_y < first_y else "flat"
+        # Add some statistics
+        x_stats = df[x_column].describe()
+        y_stats = df[y_column].describe()
         
         return f"""
-## Line Plot: {y_column} by {x_column}
+## Line Plot Statistics
 
-This line plot shows how '{y_column}' changes with '{x_column}'.
+**{x_column}:**
+- Mean: {x_stats['mean']:.2f}
+- Std Dev: {x_stats['std']:.2f}
 
-The overall trend appears to be {trend} over the range of {x_column}.
+**{y_column}:**
+- Mean: {y_stats['mean']:.2f}
+- Std Dev: {y_stats['std']:.2f}
 
 **Range:**
 - {x_column}: {df[x_column].min()} to {df[x_column].max()}
@@ -352,6 +355,68 @@ The overall trend appears to be {trend} over the range of {x_column}.
         """
     except Exception as e:
         return f"Error creating line plot: {str(e)}"
+
+def get_column_types(columns: str | None = None) -> str:
+    """
+    Get the data types of columns in the dataset.
+    
+    Args:
+        columns (str, optional): Comma-separated list of columns to check.
+                                If None, checks all columns.
+    
+    Returns:
+        str: Information about column data types and basic statistics
+    """
+    if st.session_state.dataset is None:
+        return "Error: No dataset loaded. Please load a dataset first using load_dataset."
+    
+    try:
+        df = st.session_state.dataset
+        
+        # If columns specified, parse and validate them
+        if columns:
+            # Remove any quotes and split by comma
+            columns = [col.strip('"\' ') for col in columns.split(',')]
+            # Validate columns
+            for col in columns:
+                if col not in df.columns:
+                    return f"Error: Column '{col}' not found in dataset. Available columns: {', '.join(df.columns)}"
+            # Filter DataFrame to specified columns
+            df = df[columns]
+        
+        # Get data types and basic info
+        info = []
+        info.append("## Column Information\n")
+        
+        for col in df.columns:
+            dtype = df[col].dtype
+            is_numeric = pd.api.types.is_numeric_dtype(dtype)
+            unique_count = df[col].nunique()
+            null_count = df[col].isnull().sum()
+            
+            info.append(f"### {col}")
+            info.append(f"- Data Type: {dtype}")
+            info.append(f"- Is Numeric: {is_numeric}")
+            info.append(f"- Unique Values: {unique_count}")
+            info.append(f"- Missing Values: {null_count}")
+            
+            # Add sample values
+            sample_values = df[col].dropna().head(3).tolist()
+            info.append(f"- Sample Values: {sample_values}\n")
+            
+            # Add statistics for numeric columns
+            if is_numeric:
+                stats = df[col].describe()
+                info.append("**Statistics:**")
+                info.append(f"- Mean: {stats['mean']:.2f}")
+                info.append(f"- Std Dev: {stats['std']:.2f}")
+                info.append(f"- Min: {stats['min']:.2f}")
+                info.append(f"- Max: {stats['max']:.2f}\n")
+        
+        return "\n".join(info)
+    
+    except Exception as e:
+        return f"Error getting column types: {str(e)}"
 
 def plot_heatmap(columns: List[str] | str, title: str = "Correlation Heatmap") -> str:
     """
