@@ -187,14 +187,14 @@ def clean_column_name(column):
     
     return clean_column
 
-def plot_scatter(x_column: str, y_column: str, hue_column: Optional[str] = None, 
+def plot_scatter(x_column: str, y_column: str = "", hue_column: Optional[str] = None, 
                  title: str = "Scatter Plot") -> str:
     """
     Create a scatter plot using Seaborn and display it in Streamlit.
     
     Args:
-        x_column (str): Column for x-axis
-        y_column (str): Column for y-axis
+        x_column (str): Column for x-axis or JSON with parameters
+        y_column (str, optional): Column for y-axis. If empty, will auto-select
         hue_column (str, optional): Column for color grouping
         title (str): Plot title
         
@@ -221,14 +221,34 @@ def plot_scatter(x_column: str, y_column: str, hue_column: Optional[str] = None,
         
         # Clean column names
         x_column = clean_column_name(x_column)
-        y_column = clean_column_name(y_column)
+        y_column = clean_column_name(y_column) if y_column else ""
         if hue_column is not None:
             hue_column = clean_column_name(hue_column)
+            
+        # Auto-select the first two numeric columns if needed
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
         
-        # Validate columns
-        for col in [x_column, y_column]:
-            if col not in df.columns:
-                return f"Error: Column '{col}' not found in dataset. Available columns: {', '.join(df.columns)}"
+        if not numeric_cols or len(numeric_cols) < 2:
+            return "Error: The dataset needs at least two numeric columns for a scatter plot."
+            
+        # If x_column is empty or not found, use the first numeric column
+        if not x_column or x_column not in df.columns:
+            x_column = numeric_cols[0]
+            
+        # If y_column is empty or not found, use the second numeric column
+        # (or the first if x_column is already using the first)
+        if not y_column or y_column not in df.columns:
+            if x_column == numeric_cols[0] and len(numeric_cols) > 1:
+                y_column = numeric_cols[1]
+            else:
+                y_column = numeric_cols[0]
+        
+        # Validate columns (should be valid now due to auto-selection above)
+        if x_column not in df.columns:
+            return f"Error: Column '{x_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
+            
+        if y_column not in df.columns:
+            return f"Error: Column '{y_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
         
         if hue_column is not None and hue_column not in df.columns:
             return f"Error: Hue column '{hue_column}' not found in dataset."

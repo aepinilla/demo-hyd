@@ -39,6 +39,42 @@ class PlotHeatmapInput(BaseModel):
     columns: List[str] = Field(..., description="List of columns to include in correlation heatmap")
     title: str = Field("Correlation Heatmap", description="Plot title")
 
+# Define simplified input schemas for tools that need more flexible handling
+class PlotScatterSimpleInput(BaseModel):
+    """Input schema for scatter plot with simplified interface."""
+    input_str: str = Field(..., description="Column for x-axis or JSON with x_column and y_column")
+    
+class PlotHeatmapSimpleInput(BaseModel):
+    """Input schema for heatmap with simplified interface."""
+    input_str: str = Field(..., description="Comma-separated list of columns or 'all' for all numeric columns")
+
+# Helper functions for tool wrappers
+
+def scatter_plot_wrapper(input_str):
+    """
+    Wrapper for plot_scatter that handles both structured and single-parameter inputs.
+    
+    This wrapper helps the agent use the scatter plot tool more easily by accepting
+    either a JSON string or separate parameters.
+    """
+    # If input is a string that might contain JSON
+    if isinstance(input_str, str) and ('{' in input_str and '}' in input_str):
+        # The visualization function will handle the JSON parsing
+        return plot_scatter(input_str, "", None)
+    else:
+        # Otherwise, assume it's the x_column and call with empty y_column
+        # The visualization function will handle getting the first two numeric columns
+        return plot_scatter(input_str, "", None)
+        
+def heatmap_wrapper(input_str):
+    """
+    Wrapper for plot_heatmap that handles flexible inputs.
+    
+    This wrapper helps the agent use the heatmap tool more easily by accepting
+    a string input that can be 'all' or a comma-separated list of columns.
+    """
+    return plot_heatmap(input_str)
+
 def get_tools() -> List[StructuredTool]:
     """
     Get the list of data visualization tools available to the agent.
@@ -61,11 +97,13 @@ def get_tools() -> List[StructuredTool]:
             args_schema=PlotHistogramInput,
             return_direct=False
         ),
+        # Use a wrapper for scatter plot to handle JSON input better
         StructuredTool.from_function(
-            func=plot_scatter,
+            func=scatter_plot_wrapper,  # Use the wrapper instead
             name="plot_scatter",
-            description="Create a scatter plot to show the relationship between two numerical columns.",
-            args_schema=PlotScatterInput,
+            description="Create a scatter plot to show the relationship between two numerical columns. You can specify both columns like: {\"x_column\": \"column1\", \"y_column\": \"column2\"}",
+            # Use the proper Pydantic model
+            args_schema=PlotScatterSimpleInput,
             return_direct=False
         ),
         StructuredTool.from_function(
@@ -76,10 +114,10 @@ def get_tools() -> List[StructuredTool]:
             return_direct=False
         ),
         StructuredTool.from_function(
-            func=plot_heatmap,
+            func=heatmap_wrapper,
             name="plot_heatmap",
-            description="Create a correlation heatmap to visualize relationships between multiple variables.",
-            args_schema=PlotHeatmapInput,
+            description="Create a correlation heatmap to visualize relationships between multiple variables. Use 'all' for all numeric columns or specify columns as a list or comma-separated string.",
+            args_schema=PlotHeatmapSimpleInput,
             return_direct=False
         )
     ]
