@@ -1,68 +1,47 @@
-import os
-import streamlit as st
-from openai import OpenAI
-from dotenv import load_dotenv
+"""
+Main application entry point for the Streamlit chatbot.
 
-# Load environment variables
-load_dotenv()
+This script integrates all components of the chatbot application
+and provides the main Streamlit interface.
+"""
+
+import streamlit as st
+from typing import List, Dict
+
+from src.config.settings import APP_TITLE, USER_AVATAR, BOT_AVATAR
+from src.core.chat import initialize_chat_history, add_message_to_history
+from src.core.llm import get_openai_streaming_response
+from src.ui.components import display_chat_history, create_chat_input, display_streaming_response
 
 # Set up Streamlit page
-st.title("Simple Chatbot")
-
-# Define avatars
-USER_AVATAR = "👤"
-BOT_AVATAR = "🤖"
-
-# Set up OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Initialize model
-GPT_MODEL = "gpt-4o"
+st.title(APP_TITLE)
 
 # Initialize session state for messages
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "system", "content": "You are a helpful assistant."}
-    ]
+    st.session_state.messages = initialize_chat_history()
 
-# Display chat messages
-for message in st.session_state.messages:
-    if message["role"] != "system":
-        avatar = USER_AVATAR if message["role"] == "user" else BOT_AVATAR
-        with st.chat_message(message["role"], avatar=avatar):
-            st.markdown(message["content"])
+# Display chat history
+display_chat_history(st.session_state.messages)
 
 # Chat input
-if user_message := st.chat_input("How can I help?"):
+if user_message := create_chat_input():
     # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": user_message})
+    st.session_state.messages = add_message_to_history(
+        st.session_state.messages, "user", user_message
+    )
     
     # Display user message
     with st.chat_message("user", avatar=USER_AVATAR):
         st.markdown(user_message)
     
-    # Generate and display assistant response
-    with st.chat_message("assistant", avatar=BOT_AVATAR):
-        message_placeholder = st.empty()
-        
-        try:
-            # Get response from OpenAI
-            full_response = ""
-            for chunk in client.chat.completions.create(
-                model=GPT_MODEL,
-                messages=st.session_state.messages,
-                stream=True,
-            ):
-                content = chunk.choices[0].delta.content or ""
-                full_response += content
-                message_placeholder.markdown(full_response + "▌")
-            
-            message_placeholder.markdown(full_response)
-            
-            # Add assistant response to chat history
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-            
-        except Exception as e:
-            error_message = f"An error occurred: {str(e)}"
-            message_placeholder.markdown(error_message)
-            st.session_state.messages.append({"role": "assistant", "content": error_message})
+    # Function to generate streaming response
+    def response_generator():
+        return get_openai_streaming_response(st.session_state.messages)
+    
+    # Display streaming response
+    full_response = display_streaming_response(response_generator())
+    
+    # Add assistant response to chat history
+    st.session_state.messages = add_message_to_history(
+        st.session_state.messages, "assistant", full_response
+    )
