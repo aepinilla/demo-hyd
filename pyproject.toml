@@ -1,0 +1,18 @@
+[project]
+name = "hyd2025"
+version = "0.1.0"
+description = "Hyd2025 demo"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.36.14",
+    "langchain>=0.3.17",
+    "langchain-openai>=0.3.3",
+    "levenshtein>=0.26.1",
+    "numpy-financial>=1.0.0",
+    "openai>=1.61.1",
+    "openpyxl>=3.1.5",
+    "python-dotenv>=1.0.1",
+    "seaborn>=0.13.2",
+    "streamlit>=1.42.0",
+]
