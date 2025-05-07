@@ -22,9 +22,15 @@
     margin-bottom: 1rem;
 }
 
+/* Override Streamlit's image width */
+.logo-section .st-emotion-cache-7czcpc {
+    width: 550px !important;
+}
+
 .logo-section img {
-    width: 250px;
+    width: 550px !important;
     height: auto;
+    max-width: none !important;
 }
 
 /* Make header transparent */
@@ -41,4 +47,19 @@
 /* Ensure proper spacing for content */
 .content-section {
     margin-top: 0rem;
+}
+
+/* Reduce padding in main content area */
+.st-emotion-cache-zy6yx3 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+}
+
+/* Increase font size in chat messages */
+.st-emotion-cache-vjzpa p,
+.st-emotion-cache-vjzpa ol,
+.st-emotion-cache-vjzpa ul,
+.st-emotion-cache-vjzpa dl,
+.st-emotion-cache-vjzpa li {
+    font-size: 1.1rem !important;
 }
