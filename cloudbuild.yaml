@@ -28,8 +28,6 @@ steps:
       - '2Gi'
       - '--cpu'
       - '2'
-      - '--set-env-vars'
-      - 'OPENAI_API_KEY=${_OPENAI_API_KEY}'
 
 # Store images in Google Container Registry
 images:
