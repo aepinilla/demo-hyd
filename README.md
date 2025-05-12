@@ -83,3 +83,25 @@ This project is designed for educational purposes, focusing on data visualizatio
 - **Statistical Insights**: Interpret data through visualizations
 - **Interactive Visualization**: Understand how to create responsive data visuals
 - **Data Storytelling**: Practice communicating insights through visual elements
+
+## Docker
+
+To create the requirements.txt file, run:
+
+```bash
+uv pip freeze > requirements.txt
+```
+
+To build the Docker image, run:
+
+```bash
+docker build -t hyd2025-demo .
+```
+
+To run the Docker container, run:
+
+```bash
+docker run -it --rm -p 8501:8501 hyd2025-demo
+```
+
+This will start the Streamlit app in a Docker container, and you can access it at `http://localhost:8501`.
