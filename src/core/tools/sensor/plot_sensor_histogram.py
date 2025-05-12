@@ -91,14 +91,14 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
                 continue
     
     # Force a refresh of the data to avoid caching issues
-    df, mapped_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
+    df, requested_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
     
     if error_msg:
         st.warning(error_msg)
         return error_msg
     
     # Filter the dataframe to only include the requested variables
-    filtered_df = df[df['value_type'].isin(mapped_vars)]
+    filtered_df = df[df['value_type'].isin(requested_vars)]
     
     if filtered_df.empty:
         return "Error: No data available for the requested variables after filtering."

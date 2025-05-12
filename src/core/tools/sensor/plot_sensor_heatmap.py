@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
-from src.utils.visualization import prepare_sensor_data, create_sensor_pivot_table, check_sensor_data_quality
+from src.utils.visualization import prepare_sensor_data, create_sensor_pivot_table
 
 
 def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlation Heatmap of Sensor Variables") -> str:
@@ -58,58 +58,68 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
                 continue
     
     # Force a refresh of the data to avoid caching issues
-    df, mapped_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
-    
-    # If 'all' is specified, use all available variables
-    if variables_to_plot.lower() == 'all':
-        # Get all available variables
-        available_vars = df['value_type'].unique().tolist()
-        
-        # Use all available variables
-        variables_to_plot = ','.join(available_vars)
-        print(f"Using all available variables: {variables_to_plot}")
-        
-        # Reload data with all the variables
-        df, mapped_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
+    df, requested_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
     
     if error_msg:
         st.warning(error_msg)
         return error_msg
     
     # Ensure we have at least 2 variables
-    if len(mapped_vars) < 2:
+    if len(requested_vars) < 2:
         available_vars = df['value_type'].unique().tolist()
         
         # If we have at least 2 available variables, use them instead
         if len(available_vars) >= 2:
-            mapped_vars = available_vars[:5]  # Limit to 5 for readability
-            st.info(f"Not enough variables specified. Using {', '.join(mapped_vars)} instead.")
+            requested_vars = available_vars  # Use all available variables
+            print(f"Not enough variables specified. Using all available variables instead.")
         else:
             return "Error: At least 2 variables are required for a correlation heatmap."
     
     # Create a pivot table with properly aligned measurements
-    pivot_df = create_sensor_pivot_table(df, mapped_vars)
+    pivot_df = create_sensor_pivot_table(df, requested_vars)
     
     # Check if we have any data points
-    if len(pivot_df) < 2:
+    if len(pivot_df) < 2 or pivot_df.empty:
+        # Try with just P1 and P2 which are the most common variables
+        print("Not enough data points with all variables. Trying with just P1 and P2...")
+        common_vars = [var for var in ['P1', 'P2'] if var in df['value_type'].unique()]
+        if len(common_vars) >= 2:
+            pivot_df = create_sensor_pivot_table(df, common_vars)
+            requested_vars = common_vars
+        else:
+            return "Error: Not enough data points for correlation analysis. Need at least 2 data points."
+        
+    # Ensure we have at least 2 rows in the pivot table
+    if len(pivot_df) < 2 or pivot_df.empty:
         return "Error: Not enough data points for correlation analysis. Need at least 2 data points."
         
     # Display information about the data being used for correlation
-    st.info(f"Analyzing correlations between {', '.join(mapped_vars)} using {len(pivot_df)} data points from {pivot_df['sensor_id'].nunique() if 'sensor_id' in pivot_df.columns else 'multiple'} sensors.")
-    
-    # Check data quality
-    is_suspicious, warning_msg = check_sensor_data_quality(pivot_df, mapped_vars)
-    if is_suspicious and warning_msg:
-        st.warning(warning_msg)
+    st.info(f"Analyzing correlations between {', '.join(requested_vars)} using {len(pivot_df)} data points from {pivot_df['sensor_id'].nunique() if 'sensor_id' in pivot_df.columns else 'multiple'} sensors.")
     
     # Calculate the correlation matrix
-    corr_matrix = pivot_df[mapped_vars].corr()
-    
-    # Create a new figure
-    fig, ax = plt.subplots(figsize=(10, 8))
-    
-    # Create the heatmap
-    sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
+    try:
+        # Make sure we have numeric data for correlation
+        numeric_df = pivot_df[requested_vars].apply(pd.to_numeric, errors='coerce')
+        
+        # Preserve original data values without any artificial modifications
+        # to maintain data integrity for accurate correlation analysis
+        
+        # Calculate correlation matrix
+        corr_matrix = numeric_df.corr()
+        
+        # Create a new figure
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        # Create the heatmap with a mask to hide the diagonal (self-correlations)
+        mask = np.zeros_like(corr_matrix, dtype=bool)
+        np.fill_diagonal(mask, True)  # Mask the diagonal
+        
+        # Create the heatmap
+        sns.heatmap(corr_matrix, mask=mask, annot=True, cmap="coolwarm", fmt=".2f", ax=ax, 
+                   vmin=-1, vmax=1, center=0, square=True, linewidths=.5)
+    except Exception as e:
+        st.error(f"Error calculating correlation matrix: {e}")
+        return f"Error calculating correlation matrix: {e}"
     
     # Set title
     ax.set_title(title)
@@ -119,9 +129,20 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
     
     # Find strongest correlations
     corr_pairs = []
-    for i in range(len(mapped_vars)):
-        for j in range(i+1, len(mapped_vars)):
-            corr_pairs.append((mapped_vars[i], mapped_vars[j], corr_matrix.iloc[i, j]))
+    try:
+        # Only proceed if we have a valid correlation matrix
+        if corr_matrix is not None and not corr_matrix.empty and len(corr_matrix) >= 2:
+            for i in range(len(requested_vars)):
+                for j in range(i+1, len(requested_vars)):
+                    # Check if both variables exist in the correlation matrix
+                    if requested_vars[i] in corr_matrix.index and requested_vars[j] in corr_matrix.columns:
+                        corr_value = corr_matrix.loc[requested_vars[i], requested_vars[j]]
+                        # Only add valid correlation values
+                        if not pd.isna(corr_value):
+                            corr_pairs.append((requested_vars[i], requested_vars[j], corr_value))
+    except Exception as e:
+        st.warning(f"Error calculating correlation pairs: {e}")
+        # Continue with any pairs we managed to calculate
     
     # Sort by absolute correlation value
     corr_pairs.sort(key=lambda x: abs(x[2]), reverse=True)

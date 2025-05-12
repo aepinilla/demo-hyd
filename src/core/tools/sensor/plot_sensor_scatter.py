@@ -60,7 +60,7 @@ def plot_sensor_scatter(x_variable: str = "P1", y_variable: str = "P2", title: s
                 continue
     
     # Force a refresh of the data to avoid caching issues
-    df, _, error_msg = prepare_sensor_data("all", force_refresh=True)
+    df, available_vars, error_msg = prepare_sensor_data("all", force_refresh=True)
     
     if error_msg:
         st.warning(error_msg)
