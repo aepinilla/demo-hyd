@@ -53,6 +53,10 @@ if "messages" not in st.session_state:
 
 if "dataset" not in st.session_state:
     st.session_state.dataset = None
+    
+# Initialize user_input in session state if not present
+if "user_input" not in st.session_state:
+    st.session_state.user_input = ""
 
 # Main content section
 st.markdown('<div class="content-section">', unsafe_allow_html=True)
@@ -112,22 +116,52 @@ with col2:
     st.subheader("Example Queries")
     st.markdown("<hr>", unsafe_allow_html=True)
     
-    # Convert example queries to interactive buttons
-    examples = [
-        "Show a histogram of the first numeric column",
-        "Create a scatter plot comparing the first two numeric columns",
-        "Plot a correlation heatmap for all numeric columns",
-    ]
+    # Tabs for different types of examples
+    data_tab, sensor_tab = st.tabs(["Dataset Examples", "Sensor.Community"])
     
-    for i, example in enumerate(examples):
-        if st.button(example, key=f"example_{i}"):
-            # Check if dataset is loaded before processing visualization queries
-            if st.session_state.dataset is None:
-                st.error("Please upload a dataset first before using visualization examples.")
-            else:
-                # Set the selected example as the user input
-                st.session_state.user_input = example
-                st.rerun()
+    with data_tab:
+        # Dataset examples
+        dataset_examples = [
+            "Show a histogram of the first numeric column",
+            "Create a scatter plot comparing the first two numeric columns",
+            "Plot a correlation heatmap for all numeric columns",
+        ]
+        
+        for i, example in enumerate(dataset_examples):
+            if st.button(example, key=f"example_dataset_{i}"):
+                if "user_input" in st.session_state:
+                    st.session_state.user_input = example
+                    st.rerun()
+    
+    with sensor_tab:
+        st.markdown("### General Queries")
+        sensor_examples = [
+            "Show the latest PM2.5 readings from DE",  # Using country code DE for Germany
+            "Compare temperature readings across DE, FR, and IT",  # Using country codes
+            "Plot PM10 levels in Berlin (area=52.5200,13.4050,10)",
+            "Show a heatmap of sensor readings in the last 24 hours",
+        ]
+        
+        for i, example in enumerate(sensor_examples):
+            if st.button(example, key=f"example_general_{i}"):
+                if "user_input" in st.session_state:
+                    st.session_state.user_input = example
+                    st.rerun()
+        
+        st.markdown("### Time Series Examples")
+        time_series_examples = [
+            "Create a line plot of PM2.5 levels over the last 24 hours",
+            "Show how temperature changed over time for sensor ID 12345",
+            "Compare PM10 readings from morning vs evening today",
+            "Plot a time series of humidity levels in Munich",
+            "Show the trend of air quality in Berlin over the past hour"
+        ]
+        
+        for i, example in enumerate(time_series_examples):
+            if st.button(example, key=f"example_timeseries_{i}"):
+                if "user_input" in st.session_state:
+                    st.session_state.user_input = example
+                    st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
 

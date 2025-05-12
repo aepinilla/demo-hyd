@@ -92,7 +92,7 @@ def get_tools() -> List[StructuredTool]:
     Returns:
         List[StructuredTool]: A list of data visualization tool objects
     """
-    return [
+    visualization_tools = [
         StructuredTool.from_function(
             func=load_dataset,
             name="load_dataset",
@@ -138,3 +138,10 @@ def get_tools() -> List[StructuredTool]:
             return_direct=False
         )
     ]
+    
+    # Add sensor community tools
+    from src.core.sensor_tools import get_sensor_tools
+    sensor_tools = get_sensor_tools()
+    
+    # Combine and return all tools
+    return visualization_tools + sensor_tools
