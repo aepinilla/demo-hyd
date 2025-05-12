@@ -116,47 +116,9 @@ def plot_sensor_time_series(df_or_data_type: Union[pd.DataFrame, str, Dict[str, 
     if value_column is None:
         st.error("No value column specified for plotting.")
         return
-        
-    # Special case: when grouping by value_type and using 'value' column directly
-    if group_by == 'value_type' and value_column == 'value' and 'value_type' in df.columns:
-        # In this case, we want to plot all value types together, so no filtering needed
-        print(f"Plotting all value types grouped by {group_by}")
-        # Make sure we only include rows with value_type in ['P1', 'P2'] for SDS011 sensors
-        if 'sensor_type' in df.columns and df['sensor_type'].str.contains('SDS011').any():
-            df = df[df['value_type'].isin(['P1', 'P2'])]
-            print(f"Filtered to only include P1 and P2 value types for SDS011 sensors")
-    # Additional handling for specific value types (P1, P2) when they're provided directly
-    elif value_column in ['P1', 'P2', 'temperature', 'humidity', 'pressure'] and 'value_type' in df.columns:
-        # Filter the dataframe to only include rows with the specified value_type
-        filtered_df = df[df['value_type'] == value_column]
-        
-        if not filtered_df.empty:
-            df = filtered_df
-            value_column = 'value'  # The actual values are in the 'value' column
-            print(f"Filtered data by value_type={value_column}, using 'value' column for plotting")
-        else:
-            st.warning(f"No data found for value_type={value_column}. Using the original dataset.")
-            # If we can't filter by value_type, just continue with the original dataset
     
     # Call the actual plotting function
-    try:
-        # Create a new figure context to ensure clean plotting
-        plt.figure(figsize=(10, 6))
-        
-        # Call the plotting function
-        plot_time_series(df, value_column, time_column, group_by, title, resample_freq)
-        
-        # Add a success message to show in the UI
-        if group_by and group_by == 'value_type':
-            st.success(f"Successfully plotted {len(df)} data points grouped by {group_by}")
-        else:
-            st.success(f"Successfully plotted {len(df)} data points for value column '{value_column}'")
-            
-    except Exception as e:
-        st.error(f"Error creating plot: {str(e)}")
-        print(f"Error in plot_sensor_time_series: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
+    plot_time_series(df, value_column, time_column, group_by, title, resample_freq)
 
 def compare_sensor_time_periods(df_or_data_type: Union[pd.DataFrame, str, Dict[str, Any]],
                                value_column: Optional[str] = None,

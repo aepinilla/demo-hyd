@@ -20,10 +20,8 @@ from datetime import datetime
 from src.config.settings import USER_AVATAR, BOT_AVATAR
 from src.core.chat import initialize_chat_history, add_message_to_history, get_messages_for_llm
 from src.core.agents import create_agent_executor
-from src.core.sensor_tools import get_sensor_tools
-from src.core.enhanced_tools import get_enhanced_visualization_tools
-from src.core.tools import get_tools
-from src.ui.components import display_chat_history, create_chat_input
+from src.core.tools import get_all_tools
+# from src.ui.components import display_chat_history, create_chat_input
 
 # Set up Streamlit page config
 st.set_page_config(
@@ -51,9 +49,8 @@ with st.container():
 
 # Initialize tools and agent
 if "agent_executor" not in st.session_state:
-    # Create an agent executor with enhanced visualization and basic tools
-    # Combine standard visualization tools with enhanced sensor visualization tools
-    all_tools = get_tools() + get_sensor_tools() + get_enhanced_visualization_tools()
+    # Create an agent executor with all consolidated tools
+    all_tools = get_all_tools()
     agent_executor = create_agent_executor(all_tools)
     st.session_state.agent_executor = agent_executor
 
