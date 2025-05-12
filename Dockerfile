@@ -11,6 +11,9 @@ WORKDIR /app
 # Install uv (fast Python package manager)
 RUN pip install --upgrade pip && pip install uv
 
+# Create requirements.txt
+RUN uv pip freeze > requirements.txt
+
 # Copy only requirements.txt first for better layer caching
 COPY requirements.txt .
 

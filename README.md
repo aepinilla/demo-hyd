@@ -27,11 +27,13 @@ demo/
 ## Quick Start
 
 1. Install the required packages:
+
    ```bash
    uv sync
    ```
 
 2. Set up your environment variables:
+
    ```bash
    cp env.example .env
    # Edit .env with your OpenAI API key
@@ -81,7 +83,3 @@ This project is designed for educational purposes, focusing on data visualizatio
 - **Statistical Insights**: Interpret data through visualizations
 - **Interactive Visualization**: Understand how to create responsive data visuals
 - **Data Storytelling**: Practice communicating insights through visual elements
-
-## License
-
-MIT
