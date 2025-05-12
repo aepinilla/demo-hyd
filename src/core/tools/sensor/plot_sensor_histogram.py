@@ -113,14 +113,14 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
         return "Error: No data available for the requested variables after filtering."
     
     # Create a figure with subplots for each variable
-    fig, axes = plt.subplots(len(mapped_vars), 1, figsize=(10, 4 * len(mapped_vars)), sharex=False)
+    fig, axes = plt.subplots(len(requested_vars), 1, figsize=(10, 4 * len(requested_vars)), sharex=False)
     
     # If only one variable, axes is not an array
-    if len(mapped_vars) == 1:
+    if len(requested_vars) == 1:
         axes = [axes]
     
     # Plot histograms for each variable
-    for i, var in enumerate(mapped_vars):
+    for i, var in enumerate(requested_vars):
         var_df = filtered_df[filtered_df['value_type'] == var]
         
         # Skip if no data for this variable
@@ -147,7 +147,7 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
     
     # Generate statistics for each variable in a more concise way
     stats = []
-    for var in mapped_vars:
+    for var in requested_vars:
         var_df = filtered_df[filtered_df['value_type'] == var]
         if not var_df.empty:
             var_stats = var_df['value'].describe()

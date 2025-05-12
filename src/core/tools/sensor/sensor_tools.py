@@ -51,7 +51,7 @@ def get_sensor_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=plot_sensor_heatmap,
             name="plot_sensor_heatmap",
-            description="Create a correlation heatmap for sensor variables to visualize relationships between different measurements.",
+            description="Create a correlation heatmap for sensor variables to visualize relationships between different measurements. Do not include latitude and longitude in the heatmap.",
             return_direct=False
         ),
         StructuredTool.from_function(
