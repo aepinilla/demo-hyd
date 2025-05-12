@@ -92,8 +92,25 @@ def plot_sensor_scatter(x_variable: str = "P1", y_variable: str = "P2", title: s
         st.warning(error)
         return error
     
-    # Create a pivot table to properly align measurements
-    plot_df = create_sensor_pivot_table(df, [x_var, y_var])
+    # Filter to use only the latest measurement of each unique sensor
+    # First, filter the dataframe to include only the variables we need
+    filtered_df = df[df['value_type'].isin([x_var, y_var])].copy()
+    
+    # Get the latest timestamp for each sensor
+    latest_timestamps = filtered_df.groupby('sensor_id')['timestamp'].max().reset_index()
+    latest_timestamps = latest_timestamps.rename(columns={'timestamp': 'latest_timestamp'})
+    
+    # Merge to get only the latest measurements for each sensor
+    merged_df = pd.merge(filtered_df, latest_timestamps, on='sensor_id')
+    latest_data = merged_df[merged_df['timestamp'] == merged_df['latest_timestamp']]
+    
+    # Now pivot to wide format
+    plot_df = latest_data.pivot_table(
+        index='sensor_id',
+        columns='value_type',
+        values='value',
+        aggfunc='mean'  # Use mean if there are multiple values for the same sensor/value_type
+    ).reset_index()
     
     if len(plot_df) < 2:
         error = f"Error: Not enough data points for variables {x_var} and {y_var} to create a scatter plot."

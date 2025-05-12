@@ -92,6 +92,15 @@ def get_sensor_variable_stats() -> str:
     if df.empty:
         return "Error: No sensor data available. The API returned empty results."
     
+    # Filter to use only the latest measurement of each unique sensor
+    # First, get the latest timestamp for each sensor
+    latest_timestamps = df.groupby('sensor_id')['timestamp'].max().reset_index()
+    latest_timestamps = latest_timestamps.rename(columns={'timestamp': 'latest_timestamp'})
+    
+    # Merge to get only the latest measurements for each sensor
+    merged_df = pd.merge(df, latest_timestamps, on='sensor_id')
+    df = merged_df[merged_df['timestamp'] == merged_df['latest_timestamp']]
+    
     # Get unique sensor types
     sensor_types = df['sensor_type'].unique().tolist()
     

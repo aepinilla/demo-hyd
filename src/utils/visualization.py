@@ -589,18 +589,16 @@ def prepare_sensor_data(variables_to_plot: str = "all", force_refresh: bool = Fa
 
 def create_sensor_pivot_table(df: pd.DataFrame, variables: list) -> pd.DataFrame:
     """
-    Create a pivot table from sensor data to properly align measurements by sensor and timestamp.
-    This ensures we're comparing values from the same sensors at the same times.
+    Create a simple pivot table from sensor data for correlation analysis.
     
     Args:
         df (DataFrame): The sensor data DataFrame
         variables (list): List of variables to include in the pivot table
         
     Returns:
-        DataFrame: Pivot table with aligned sensor measurements
+        DataFrame: Pivot table with sensor measurements
     """
     import streamlit as st
-    import numpy as np
     
     # Filter to only include the requested variables
     filtered_df = df[df['value_type'].isin(variables)].copy()
@@ -610,91 +608,21 @@ def create_sensor_pivot_table(df: pd.DataFrame, variables: list) -> pd.DataFrame
     if unique_sensors < 2:
         print(f"Limited data diversity: Only {unique_sensors} unique sensors found. Correlations may not be representative.")
     
-    # We preserve the original data values without any artificial modifications
-    # to maintain data integrity for accurate correlation analysis
-    
-    # Create pivot table with a more flexible approach
-    # Use a time window approach instead of exact timestamp matching
-    # First, round timestamps to the nearest 5-minute window to group similar readings
-    filtered_df['timestamp_rounded'] = filtered_df['timestamp'].dt.round('5min')
-    
-    # For more realistic correlations, we need to ensure we're not just comparing
-    # measurements from the same sensor at the same time
-    # Create a new feature that combines sensor characteristics
-    if 'latitude' in filtered_df.columns and 'longitude' in filtered_df.columns:
-        # Group by geographical region (rounded lat/long) instead of exact sensor
-        filtered_df['geo_region'] = (
-            filtered_df['latitude'].round(1).astype(str) + '_' + 
-            filtered_df['longitude'].round(1).astype(str)
-        )
-        
-        # Create pivot table using geographical regions and rounded timestamps
-        pivot_df = filtered_df.pivot_table(
-            index=['geo_region', 'timestamp_rounded'],
-            columns='value_type',
-            values='value',
-            aggfunc='mean'  # Use mean for multiple readings in the same region/time
-        ).reset_index()
-    else:
-        # Fall back to sensor_id if geo coordinates aren't available
-        pivot_df = filtered_df.pivot_table(
-            index=['sensor_id', 'timestamp_rounded'],
-            columns='value_type',
-            values='value',
-            aggfunc='mean'  # Use mean for multiple readings in the same time window
-        ).reset_index()
+    # Create a simple pivot table with sensor_id as index
+    pivot_df = filtered_df.pivot_table(
+        index='sensor_id',
+        columns='value_type',
+        values='value',
+        aggfunc='mean'  # Use mean for multiple readings from the same sensor
+    ).reset_index()
     
     # Drop rows with NaN values in any of the requested variables
     pivot_df = pivot_df.dropna(subset=variables)
     
-    # If we have very few data points, try a different approach with less restrictive grouping
-    if len(pivot_df) < 5:
-        print("Limited paired data points. Using a broader grouping approach.")
-        # Try a more flexible approach: create a synthetic dataset by pairing measurements
-        # that are close in time, regardless of sensor
-        
-        # First, try grouping just by timestamp with a wider window (15 minutes)
-        filtered_df['timestamp_rounded'] = filtered_df['timestamp'].dt.round('15min')
-        pivot_df = filtered_df.pivot_table(
-            index=['timestamp_rounded'],
-            columns='value_type',
-            values='value',
-            aggfunc='mean'
-        ).reset_index()
-        
-        # If still not enough data, create a synthetic dataset
-        if len(pivot_df.dropna(subset=variables)) < 5:
-            print("Creating synthetic dataset for correlation analysis...")
-            # Create a dictionary to store values for each variable
-            var_values = {var: filtered_df[filtered_df['value_type'] == var]['value'].tolist() for var in variables}
-            
-            # Ensure we have values for each variable
-            var_values = {var: values for var, values in var_values.items() if values}
-            
-            # If we have at least 2 variables with values, create a synthetic dataset
-            if len(var_values) >= 2:
-                # Get the minimum length of values
-                min_length = min(len(values) for values in var_values.values())
-                
-                # Create a synthetic dataset with the same length for all variables
-                synthetic_data = {}
-                for var, values in var_values.items():
-                    # Use the first min_length values
-                    synthetic_data[var] = values[:min_length]
-                
-                # Create a DataFrame from the synthetic data
-                pivot_df = pd.DataFrame(synthetic_data)
-            else:
-                # If we still don't have enough data, return an empty DataFrame
-                pivot_df = pd.DataFrame()
-        
-        # Drop rows with NaN values in any of the requested variables
-        pivot_df = pivot_df.dropna(subset=variables)
-    
-    # Ensure we have enough variation in the data
-    for var in variables:
-        if var in pivot_df.columns and pivot_df[var].nunique() < 3:
-            st.warning(f"Limited variation in {var} values. Correlation results may not be meaningful.")
+    # # Ensure we have enough variation in the data
+    # for var in variables:
+    #     if var in pivot_df.columns and pivot_df[var].nunique() < 3:
+    #         st.warning(f"Limited variation in {var} values. Correlation results may not be meaningful.")
     
     return pivot_df
 

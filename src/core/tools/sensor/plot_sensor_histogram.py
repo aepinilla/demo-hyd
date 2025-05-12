@@ -98,7 +98,16 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
         return error_msg
     
     # Filter the dataframe to only include the requested variables
-    filtered_df = df[df['value_type'].isin(requested_vars)]
+    filtered_df = df[df['value_type'].isin(requested_vars)].copy()
+    
+    # Filter to use only the latest measurement of each unique sensor
+    # First, get the latest timestamp for each sensor
+    latest_timestamps = filtered_df.groupby('sensor_id')['timestamp'].max().reset_index()
+    latest_timestamps = latest_timestamps.rename(columns={'timestamp': 'latest_timestamp'})
+    
+    # Merge to get only the latest measurements for each sensor
+    merged_df = pd.merge(filtered_df, latest_timestamps, on='sensor_id')
+    filtered_df = merged_df[merged_df['timestamp'] == merged_df['latest_timestamp']]
     
     if filtered_df.empty:
         return "Error: No data available for the requested variables after filtering."
