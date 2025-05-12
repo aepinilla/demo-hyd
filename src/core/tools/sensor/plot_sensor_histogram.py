@@ -24,9 +24,50 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
     # Check all parameters for JSON structure
     for param_name, param_value in {'variables_to_plot': variables_to_plot, 'bins': bins, 'title': title}.items():
         if isinstance(param_value, str) and '{' in param_value and '}' in param_value:
+            
+            # Check for potential escape character issues
+            if '\\"' in param_value or '\\\\' in param_value:
+                st.warning(f"Found escape characters that might cause issues")
+                # Try to clean up common escape character issues
+                cleaned_value = param_value.replace('\\"', '"').replace('\\\\', '\\')
+                st.write(f"Cleaned value: {repr(cleaned_value)}")
+                try:
+                    params = json.loads(cleaned_value)
+                    st.success("Successfully parsed JSON after cleaning!")
+                    # Extract parameters from the JSON object
+                    if 'variables_to_plot' in params:
+                        variables_to_plot = params['variables_to_plot']
+                    elif 'column' in params:  # Support for standard tool parameter name
+                        variables_to_plot = params['column']
+                    if 'bins' in params:
+                        try:
+                            bins = int(params['bins'])
+                        except (ValueError, TypeError):
+                            pass
+                    if 'title' in params:
+                        title = params['title']
+                        
+                    st.info(f"Parsed JSON input: variables={variables_to_plot}, bins={bins}, title={title}")
+                    break  # Only need to parse one JSON object
+                except json.JSONDecodeError as e:
+                    st.warning(f"Still failed to parse after cleaning: {e}")
+            
+            # Clean up any markdown formatting or trailing characters
+            cleaned_param = param_value
+            
+            # Remove trailing backticks and newlines if present
+            if '\n' in cleaned_param or '```' in cleaned_param:
+                # Remove any newline followed by backticks
+                cleaned_param = cleaned_param.split('\n```')[0]
+                # Remove any standalone backticks at the end
+                if cleaned_param.endswith('```'):
+                    cleaned_param = cleaned_param[:-3]
+                # Trim whitespace
+                cleaned_param = cleaned_param.strip()
+            
             try:
-                # Try to parse as JSON
-                params = json.loads(param_value)
+                # Try to parse as JSON with cleaned parameter
+                params = json.loads(cleaned_param)
                 
                 # Extract parameters from the JSON object
                 if 'variables_to_plot' in params:
@@ -40,11 +81,13 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
                         pass
                 if 'title' in params:
                     title = params['title']
-                    
-                st.info(f"Parsed JSON input: variables={variables_to_plot}, bins={bins}, title={title}")
+                
+                # Quietly break - no need to show success messages to the user
+                print(f"Parsed JSON parameters: variables={variables_to_plot}, bins={bins}, title={title}")
                 break  # Only need to parse one JSON object
-            except json.JSONDecodeError:
-                st.warning(f"Failed to parse JSON input: {param_value}")
+            except json.JSONDecodeError as e:
+                # Log the error for debugging but continue with the original parameters
+                print(f"JSON parse error: {e}")
                 continue
     
     # Force a refresh of the data to avoid caching issues
