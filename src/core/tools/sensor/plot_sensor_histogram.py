@@ -21,28 +21,31 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
     """
     
     # Handle JSON input from LangChain agent
-    if isinstance(variables_to_plot, str) and '{' in variables_to_plot and '}' in variables_to_plot:
-        try:
-            # Try to parse as JSON
-            params = json.loads(variables_to_plot)
-            
-            # Extract parameters from the JSON object
-            if 'variables_to_plot' in params:
-                variables_to_plot = params['variables_to_plot']
-            elif 'column' in params:  # Support for standard tool parameter name
-                variables_to_plot = params['column']
-            if 'bins' in params:
-                try:
-                    bins = int(params['bins'])
-                except (ValueError, TypeError):
-                    pass
-            if 'title' in params:
-                title = params['title']
+    # Check all parameters for JSON structure
+    for param_name, param_value in {'variables_to_plot': variables_to_plot, 'bins': bins, 'title': title}.items():
+        if isinstance(param_value, str) and '{' in param_value and '}' in param_value:
+            try:
+                # Try to parse as JSON
+                params = json.loads(param_value)
                 
-            st.info(f"Parsed JSON input: variables={variables_to_plot}, bins={bins}, title={title}")
-        except json.JSONDecodeError:
-            st.warning(f"Failed to parse JSON input: {variables_to_plot}")
-            # Continue with original parameters
+                # Extract parameters from the JSON object
+                if 'variables_to_plot' in params:
+                    variables_to_plot = params['variables_to_plot']
+                elif 'column' in params:  # Support for standard tool parameter name
+                    variables_to_plot = params['column']
+                if 'bins' in params:
+                    try:
+                        bins = int(params['bins'])
+                    except (ValueError, TypeError):
+                        pass
+                if 'title' in params:
+                    title = params['title']
+                    
+                st.info(f"Parsed JSON input: variables={variables_to_plot}, bins={bins}, title={title}")
+                break  # Only need to parse one JSON object
+            except json.JSONDecodeError:
+                st.warning(f"Failed to parse JSON input: {param_value}")
+                continue
     
     # Force a refresh of the data to avoid caching issues
     df, mapped_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)

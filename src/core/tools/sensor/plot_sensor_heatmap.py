@@ -21,23 +21,44 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
     """
     
     # Handle JSON input from LangChain agent
-    if isinstance(variables_to_plot, str) and '{' in variables_to_plot and '}' in variables_to_plot:
-        try:
-            # Try to parse as JSON
-            params = json.loads(variables_to_plot)
-            
-            # Extract parameters from the JSON object
-            if 'variables_to_plot' in params:
-                variables_to_plot = params['variables_to_plot']
-            elif 'columns' in params:  # Support for standard tool parameter name
-                variables_to_plot = params['columns']
-            if 'title' in params:
-                title = params['title']
+    # Check all parameters for JSON structure
+    for param_name, param_value in {'variables_to_plot': variables_to_plot, 'title': title}.items():
+        if isinstance(param_value, str) and '{' in param_value and '}' in param_value:
+            try:
+                # Try to parse as JSON
+                params = json.loads(param_value)
                 
-            st.info(f"Parsed JSON input: variables={variables_to_plot}, title={title}")
-        except json.JSONDecodeError:
-            st.warning(f"Failed to parse JSON input: {variables_to_plot}")
-            # Continue with original parameters
+                # Extract parameters from the JSON object
+                if 'variables_to_plot' in params:
+                    variables_to_plot = params['variables_to_plot']
+                elif 'columns' in params:  # Support for standard tool parameter name
+                    variables_to_plot = params['columns']
+                if 'title' in params:
+                    title = params['title']
+                    
+                st.info(f"Parsed JSON input: variables={variables_to_plot}, title={title}")
+                break  # Only need to parse one JSON object
+            except json.JSONDecodeError:
+                st.warning(f"Failed to parse JSON input: {param_value}")
+                continue
+                
+    # If 'all' is specified, select a diverse set of variables instead of just P1 and P2
+    if variables_to_plot.lower() == 'all':
+        # Get all available variables
+        available_vars = df['value_type'].unique().tolist()
+        
+        # Select a diverse set of variables (not just P1 and P2)
+        # Prioritize common measurements like P1, P2, temperature, humidity, etc.
+        priority_vars = ['P1', 'P2', 'temperature', 'humidity', 'pressure']
+        selected_vars = [var for var in priority_vars if var in available_vars]
+        
+        # Add other variables to get a good mix (up to 5 total)
+        other_vars = [var for var in available_vars if var not in selected_vars]
+        selected_vars.extend(other_vars[:5 - len(selected_vars)])
+        
+        variables_to_plot = ','.join(selected_vars)
+        st.info(f"Selected diverse set of variables: {variables_to_plot}")
+    
     
     # Force a refresh of the data to avoid caching issues
     df, mapped_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
@@ -63,6 +84,9 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
     # Check if we have enough data points
     if len(pivot_df) < 3:
         return "Error: Not enough data points for correlation analysis."
+        
+    # Display information about the data being used for correlation
+    st.info(f"Analyzing correlations between {', '.join(mapped_vars)} using {len(pivot_df)} data points from {pivot_df['sensor_id'].nunique() if 'sensor_id' in pivot_df.columns else 'multiple'} sensors.")
     
     # Check data quality
     is_suspicious, warning_msg = check_sensor_data_quality(pivot_df, mapped_vars)

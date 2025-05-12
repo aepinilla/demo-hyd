@@ -25,7 +25,7 @@ def get_sensor_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=fetch_latest_data,
             name="fetch_latest_sensor_data",
-            description="Fetch the latest data from sensor.community API, focusing on SDS011 dust sensors measuring PM10 (P1) and PM2.5 (P2) levels.",
+            description="Fetch the latest data from sensor.community API, focusing on the data_type or sensor type indicated by the user.",
             # Don't use args_schema to avoid parameter handling issues
             return_direct=False
         ),
@@ -39,13 +39,13 @@ def get_sensor_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=plot_sensor_histogram,
             name="plot_sensor_histogram",
-            description="Create histograms for sensor data variables like PM10 (P1) and PM2.5 (P2) to visualize their distributions.",
+            description="Create histograms for sensor data variables to visualize their distributions.",
             return_direct=False
         ),
         StructuredTool.from_function(
             func=plot_sensor_scatter,
             name="plot_sensor_scatter",
-            description="Create a scatter plot comparing two sensor variables (e.g., PM10 vs PM2.5) to visualize their relationship.",
+            description="Create a scatter plot comparing all variables mentioned by the user. If the user does not mention any variables, use all sensor variables to visualize their relationship.",
             return_direct=False
         ),
         StructuredTool.from_function(
@@ -57,7 +57,7 @@ def get_sensor_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=get_sensor_types,
             name="get_available_sensor_types",
-            description="Get a list of available sensor types in the sensor.community network, with SDS011 being the most reliable for dust measurements.",
+            description="Get a list of available sensor types in the sensor.community network.",
             return_direct=False
         ),
     ]

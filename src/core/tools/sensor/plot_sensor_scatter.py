@@ -23,23 +23,26 @@ def plot_sensor_scatter(x_variable: str = "P1", y_variable: str = "P2", title: s
     """
     
     # Handle JSON input from LangChain agent
-    # Check if x_variable contains a JSON structure with all parameters
-    if isinstance(x_variable, str) and '{' in x_variable and '}' in x_variable:
-        try:
-            # Try to parse as JSON
-            params = json.loads(x_variable)
-            
-            # Extract parameters from the JSON object
-            if 'x_variable' in params:
-                x_variable = params['x_variable']
-            if 'y_variable' in params:
-                y_variable = params['y_variable']
-            if 'title' in params:
-                title = params['title']
+    # First, check if any of the parameters are JSON objects
+    for param_name, param_value in {'x_variable': x_variable, 'y_variable': y_variable, 'title': title}.items():
+        if isinstance(param_value, str) and '{' in param_value and '}' in param_value:
+            try:
+                # Try to parse as JSON
+                params = json.loads(param_value)
                 
-            st.info(f"Parsed JSON input: x_variable={x_variable}, y_variable={y_variable}, title={title}")
-        except json.JSONDecodeError:
-            st.warning(f"Failed to parse JSON input: {x_variable}")
+                # Extract parameters from the JSON object
+                if 'x_variable' in params:
+                    x_variable = params['x_variable']
+                if 'y_variable' in params:
+                    y_variable = params['y_variable']
+                if 'title' in params:
+                    title = params['title']
+                    
+                st.info(f"Parsed JSON input: x_variable={x_variable}, y_variable={y_variable}, title={title}")
+                break  # Only need to parse one JSON object
+            except json.JSONDecodeError:
+                st.warning(f"Failed to parse JSON input: {param_value}")
+                continue
     
     # Force a refresh of the data to avoid caching issues
     df, _, error_msg = prepare_sensor_data("all", force_refresh=True)
