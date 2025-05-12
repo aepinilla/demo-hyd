@@ -8,17 +8,14 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
-# Install uv (fast Python package manager)
-RUN pip install --upgrade pip && pip install uv
-
-# Create requirements.txt
-RUN uv pip freeze > requirements.txt
+# Upgrade pip and install dependencies
+RUN pip install --upgrade pip
 
 # Copy only requirements.txt first for better layer caching
 COPY requirements.txt .
 
-# Install dependencies using uv with --system flag
-RUN uv pip install --system -r requirements.txt
+# Install dependencies using pip
+RUN pip install -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .

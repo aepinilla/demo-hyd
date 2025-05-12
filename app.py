@@ -20,7 +20,7 @@ from datetime import datetime
 from src.config.settings import USER_AVATAR, BOT_AVATAR
 from src.core.chat import initialize_chat_history, add_message_to_history, get_messages_for_llm
 from src.core.agents import create_agent_executor
-from src.core.tools import get_all_tools
+from src.core.tools.tools import get_all_tools
 # from src.ui.components import display_chat_history, create_chat_input
 
 # Set up Streamlit page config
