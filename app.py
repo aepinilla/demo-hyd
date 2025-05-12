@@ -207,15 +207,12 @@ with col1:
         # Clear it to avoid repeated submission
         st.session_state["user_input"] = ""
     
-    # Always show chat input field
-    chat_input = st.chat_input(
-        "Ask a question about your data...", 
-        key="chat_input"
-    )
-    
-    # If chat input is provided, use it as the user message
-    if chat_input:
-        user_message = chat_input
+    # Get input from chat field if provided
+    chat_input_value = st.session_state.get("chat_input", "")
+    if chat_input_value:
+        user_message = chat_input_value
+        # Clear it to avoid repeated submission
+        st.session_state["chat_input"] = ""
     
     if user_message:
         # Add user message to chat history
@@ -326,5 +323,11 @@ with col1:
                 st.session_state.messages = add_message_to_history(
                     st.session_state.messages, "assistant", error_message
                 )
+    
+    # Always show chat input field at the end of all content
+    st.chat_input(
+        "Ask a question about your data...", 
+        key="chat_input"
+    )
     
     st.markdown("</div>", unsafe_allow_html=True)
