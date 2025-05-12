@@ -26,9 +26,22 @@ def plot_sensor_scatter(x_variable: str = "P1", y_variable: str = "P2", title: s
     # First, check if any of the parameters are JSON objects
     for param_name, param_value in {'x_variable': x_variable, 'y_variable': y_variable, 'title': title}.items():
         if isinstance(param_value, str) and '{' in param_value and '}' in param_value:
+            # Clean up any markdown formatting or trailing characters
+            cleaned_param = param_value
+            
+            # Remove trailing backticks and newlines if present
+            if '\n' in cleaned_param or '```' in cleaned_param:
+                # Remove any newline followed by backticks
+                cleaned_param = cleaned_param.split('\n```')[0]
+                # Remove any standalone backticks at the end
+                if cleaned_param.endswith('```'):
+                    cleaned_param = cleaned_param[:-3]
+                # Trim whitespace
+                cleaned_param = cleaned_param.strip()
+            
             try:
-                # Try to parse as JSON
-                params = json.loads(param_value)
+                # Try to parse as JSON with cleaned parameter
+                params = json.loads(cleaned_param)
                 
                 # Extract parameters from the JSON object
                 if 'x_variable' in params:
@@ -37,11 +50,13 @@ def plot_sensor_scatter(x_variable: str = "P1", y_variable: str = "P2", title: s
                     y_variable = params['y_variable']
                 if 'title' in params:
                     title = params['title']
-                    
-                st.info(f"Parsed JSON input: x_variable={x_variable}, y_variable={y_variable}, title={title}")
+                
+                # Quietly log the parsed parameters
+                print(f"Parsed JSON parameters: x_variable={x_variable}, y_variable={y_variable}, title={title}")
                 break  # Only need to parse one JSON object
-            except json.JSONDecodeError:
-                st.warning(f"Failed to parse JSON input: {param_value}")
+            except json.JSONDecodeError as e:
+                # Log the error for debugging but continue with the original parameters
+                print(f"JSON parse error: {e}")
                 continue
     
     # Force a refresh of the data to avoid caching issues

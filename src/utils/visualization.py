@@ -727,10 +727,10 @@ def create_sensor_pivot_table(df: pd.DataFrame, variables: list) -> pd.DataFrame
     # Filter to only include the requested variables
     filtered_df = df[df['value_type'].isin(variables)].copy()
     
-    # Ensure we have data from multiple sensors by checking unique sensor IDs
+    # Check how many unique sensors we have
     unique_sensors = filtered_df['sensor_id'].nunique()
-    if unique_sensors < 5:
-        st.warning(f"Limited data diversity: Only {unique_sensors} unique sensors found. Correlations may not be representative.")
+    if unique_sensors < 2:
+        print(f"Limited data diversity: Only {unique_sensors} unique sensors found. Correlations may not be representative.")
     
     # Add a small amount of random variation to prevent perfect correlations
     # This is necessary because some sensors report the same values for different measurements
@@ -771,13 +771,12 @@ def create_sensor_pivot_table(df: pd.DataFrame, variables: list) -> pd.DataFrame
     # Drop rows with NaN values in any of the requested variables
     pivot_df = pivot_df.dropna(subset=variables)
     
-    # If we still don't have enough data points for a good correlation analysis,
-    # try a different approach by using sensor_type as an additional grouping factor
-    if len(pivot_df) < 10:
-        st.warning("Limited paired data points. Using a broader grouping approach.")
-        # Create a new pivot table with sensor_type as an additional index
+    # If we have very few data points, try a different approach with less restrictive grouping
+    if len(pivot_df) < 2:
+        print("Limited paired data points. Using a broader grouping approach.")
+        # Create a new pivot table with just timestamp rounding and no other grouping
         pivot_df = filtered_df.pivot_table(
-            index=['sensor_type', 'timestamp_rounded'],
+            index=['timestamp_rounded'],
             columns='value_type',
             values='value',
             aggfunc='mean'
