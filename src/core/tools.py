@@ -32,21 +32,8 @@ from src.utils.sensor_api import (
 )
 
 # Import all time series and data analysis utilities
-from src.utils.time_series import plot_time_series, compare_time_periods
+# from src.utils.time_series import plot_time_series, compare_time_periods
 from src.utils.pollution_analysis import analyze_pollution_data, compare_pm10_pm25
-from src.utils.sensor_plot_wrapper import plot_sensor_time_series, compare_sensor_time_periods
-from src.utils.enhanced_time_series import (
-    prepare_time_series_data,
-    display_enhanced_time_series,
-    create_pm_comparison_plot
-)
-
-# Import dataframe utilities
-from src.utils.dataframe_utils import ensure_string_columns
-
-#
-# INPUT SCHEMAS
-#
 
 # Basic visualization input schemas
 class LoadDataInput(BaseModel):
@@ -54,37 +41,30 @@ class LoadDataInput(BaseModel):
     file_path: str = Field(..., description="Path to the CSV file to load")
 
 class PlotHistogramInput(BaseModel):
-    """Input schema for histogram plotting."""
-    column: str = Field(..., description="Column to plot histogram for")
-    bins: int = Field(10, description="Number of bins for the histogram")
+    """Input schema for histogram."""
+    column: Optional[str] = Field(None, description="Column to plot. If not provided, will auto-select first numeric column")
+    bins: int = Field(10, description="Number of bins")
     title: str = Field("Histogram", description="Plot title")
 
 class PlotScatterInput(BaseModel):
     """Input schema for scatter plot."""
-    x_column: str = Field(..., description="Column for x-axis")
-    y_column: str = Field(..., description="Column for y-axis")
+    x_column: Optional[str] = Field(None, description="Column for x-axis. If not provided, will auto-select first numeric column")
+    y_column: Optional[str] = Field(None, description="Column for y-axis. If not provided, will auto-select second numeric column")
     hue_column: Optional[str] = Field(None, description="Column for color grouping (optional)")
     title: str = Field("Scatter Plot", description="Plot title")
 
 class PlotLineInput(BaseModel):
     """Input schema for line plot."""
-    x_column: str = Field(..., description="Column for x-axis")
-    y_column: str = Field(..., description="Column for y-axis")
+    x_column: Optional[str] = Field(None, description="Column for x-axis. If not provided, will auto-select first numeric column")
+    y_column: Optional[str] = Field(None, description="Column for y-axis. If not provided, will auto-select second numeric column")
     title: str = Field("Line Plot", description="Plot title")
 
 class PlotHeatmapInput(BaseModel):
     """Input schema for heatmap."""
-    columns: List[str] = Field(..., description="List of columns to include in correlation heatmap")
+    columns: Union[List[str], str] = Field("all", description="List of columns or 'all' for all numeric columns")
     title: str = Field("Correlation Heatmap", description="Plot title")
 
-# Simplified input schemas for more flexible handling
-class PlotScatterSimpleInput(BaseModel):
-    """Input schema for scatter plot with simplified interface."""
-    input_str: str = Field(..., description="Column for x-axis or JSON with x_column and y_column")
-    
-class PlotHeatmapSimpleInput(BaseModel):
-    """Input schema for heatmap with simplified interface."""
-    input_str: str = Field(..., description="Comma-separated list of columns or 'all' for all numeric columns")
+# We're simplifying by removing the simplified input schemas
 
 class GetColumnTypesInput(BaseModel):
     """Input schema for getting column types."""
@@ -203,39 +183,10 @@ class PMComparisonInput(BaseModel):
     )
 
 #
-# TOOL WRAPPERS AND HELPER FUNCTIONS
+# SIMPLIFIED HELPER FUNCTIONS 
 #
 
-def scatter_plot_wrapper(input_str):
-    """
-    Wrapper for plot_scatter that handles both structured and single-parameter inputs.
-    
-    This wrapper helps the agent use the scatter plot tool more easily by accepting
-    either a JSON string or separate parameters.
-    """
-    # If input is a string that might contain JSON
-    if isinstance(input_str, str) and ('{' in input_str and '}' in input_str):
-        # The visualization function will handle the JSON parsing
-        return plot_scatter(input_str, "", None)
-    else:
-        # Otherwise, assume it's the x_column and call with empty y_column
-        # The visualization function will handle getting the first two numeric columns
-        return plot_scatter(input_str, "", None)
-        
-def heatmap_wrapper(input_str):
-    """
-    Wrapper for plot_heatmap that handles flexible inputs.
-    
-    This wrapper helps the agent use the heatmap tool more easily by accepting
-    a string input that can be 'all' or a comma-separated list of columns.
-    
-    Args:
-        input_str (str): Either 'all' for all numeric columns, or a comma-separated
-                         list of column names (e.g. 'col1,col2,col3')
-    """
-    # Remove any surrounding quotes that might cause issues
-    input_str = input_str.strip('"\'')
-    return plot_heatmap(input_str)
+# Removed complex wrappers for scatter plots and heatmaps to simplify the codebase
 
 def create_enhanced_time_series_plot(
     df_or_data_type: Union[pd.DataFrame, str, Dict[str, Any]],
@@ -459,10 +410,10 @@ def get_visualization_tools() -> List[StructuredTool]:
             return_direct=False
         ),
         StructuredTool.from_function(
-            func=scatter_plot_wrapper,
+            func=plot_scatter,
             name="plot_scatter",
-            description="Create a scatter plot to show the relationship between two numerical columns. You can specify both columns like: {\"x_column\": \"column1\", \"y_column\": \"column2\"}",
-            args_schema=PlotScatterSimpleInput,
+            description="Create a scatter plot to show the relationship between two numerical columns.",
+            args_schema=PlotScatterInput,
             return_direct=False
         ),
         StructuredTool.from_function(
@@ -473,17 +424,132 @@ def get_visualization_tools() -> List[StructuredTool]:
             return_direct=False
         ),
         StructuredTool.from_function(
-            func=heatmap_wrapper,
+            func=plot_heatmap,
             name="plot_heatmap",
-            description="Create a correlation heatmap to visualize relationships between numeric variables. First use get_column_types to identify numeric columns, then use 'all' for all numeric columns, or provide a comma-separated list.",
-            args_schema=PlotHeatmapSimpleInput,
+            description="Create a correlation heatmap to visualize relationships between numeric variables.",
+            args_schema=PlotHeatmapInput,
             return_direct=False
         )
     ]
 
+def plot_sensor_data(x_column: str = "timestamp", y_column: str = "value", title: str = "Sensor Data Time Series", hue_column: str = "value_type") -> str:
+    """
+    Create a time series plot of sensor data. This is a specialized function for visualizing
+    sensor data with sensible defaults for sensor data visualization.
+    
+    Args:
+        x_column (str): Column for x-axis, defaults to 'timestamp'
+        y_column (str): Column for y-axis, defaults to 'value'
+        title (str): Plot title
+        hue_column (str): Column to use for grouping/coloring the lines, defaults to 'value_type'
+        
+    Returns:
+        str: Result message with plot statistics
+    """
+    import streamlit as st
+    import pandas as pd
+    from src.utils.visualization import plot_line
+    
+    # Check if we have sensor data in session state
+    if 'latest_data' not in st.session_state or st.session_state.latest_data.empty:
+        return "Error: No sensor data available. Please fetch sensor data first using fetch_latest_sensor_data."
+    
+    # Get the data and make a copy to avoid modifying the original
+    df = st.session_state.latest_data.copy()
+    
+    # Verify that we have a timestamp column that can be used for time series visualization
+    if 'timestamp' not in df.columns:
+        return "Error: The sensor data does not contain a timestamp column required for time series visualization."
+    
+    # Check if the timestamp column is already a datetime type
+    if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
+        st.warning("Converting timestamp column to datetime format...")
+        try:
+            # Try to convert the timestamp column to datetime
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            
+            # Check if conversion was successful (no NaT values)
+            if df['timestamp'].isna().all():
+                return "Error: Could not convert timestamp column to datetime format. Please check the data."
+            
+            # Drop rows with NaT values if any
+            if df['timestamp'].isna().any():
+                original_len = len(df)
+                df = df.dropna(subset=['timestamp'])
+                st.warning(f"Dropped {original_len - len(df)} rows with invalid timestamps.")
+                
+        except Exception as e:
+            return f"Error converting timestamp column: {str(e)}"
+    
+    # Store the processed data in session state
+    st.session_state.dataset = df
+    
+    # Filter for SDS011 sensor data if requested in the title
+    if "SDS011" in title and "sensor_type" in df.columns:
+        df = df[df.sensor_type == "SDS011"]
+        st.session_state.dataset = df
+        st.info(f"Filtered data for SDS011 sensors: {len(df)} readings")
+    
+    # Filter for specific pollutant types if needed
+    if "PM10" in title or "P1" in title:
+        df = df[df.value_type == "P1"]
+        st.session_state.dataset = df
+        st.info(f"Filtered data for PM10 (P1) readings: {len(df)} readings")
+    elif "PM2.5" in title or "P2" in title:
+        df = df[df.value_type == "P2"]
+        st.session_state.dataset = df
+        st.info(f"Filtered data for PM2.5 (P2) readings: {len(df)} readings")
+    
+    # Check if we have enough data points for a meaningful visualization
+    if len(df) < 2:
+        return "Error: Not enough data points for a time series visualization after filtering."
+    
+    # Call the plot_line function with the specified parameters
+    return plot_line(x_column, y_column, title, hue_column)
+
+def prepare_sensor_data_for_visualization() -> str:
+    """
+    Prepare the latest fetched sensor data for visualization with the plotting tools.
+    This function makes the sensor data available to the visualization tools without
+    requiring the user to save and load a CSV file.
+    
+    Returns:
+        str: Information about the prepared dataset
+    """
+    import streamlit as st
+    
+    # Check if we have sensor data in session state
+    if 'latest_data' in st.session_state and not st.session_state.latest_data.empty:
+        # Copy the data to the dataset session state variable used by visualization tools
+        st.session_state.dataset = st.session_state.latest_data
+        
+        # Get information about the dataset
+        df = st.session_state.latest_data
+        return f"""
+## Sensor Data Prepared for Visualization
+
+**Source:** sensor.community API
+**Shape:** {df.shape[0]} rows × {df.shape[1]} columns
+**Columns:** {', '.join(df.columns.tolist())}
+
+**Column Types:**
+```
+{df.dtypes.to_string()}
+```
+
+**Sample Data:**
+```
+{df.head(5).to_string()}
+```
+
+You can now use visualization tools like plot_scatter, plot_histogram, etc. directly on this data.
+        """
+    else:
+        return "Error: No sensor data available. Please fetch sensor data first using fetch_latest_sensor_data."
+
 def get_sensor_tools() -> List[StructuredTool]:
     """
-    Get the list of sensor data tools.
+    Get the list of sensor data tools focused on reliable SDS011 dust sensor data.
     
     Returns:
         List[StructuredTool]: A list of sensor data tool objects
@@ -492,63 +558,61 @@ def get_sensor_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=fetch_latest_data,
             name="fetch_latest_sensor_data",
-            description="Fetch the latest data from sensor.community API. Returns data from the past 5 minutes for various sensors based on optional filters.",
+            description="Fetch the latest data from sensor.community API, focusing on SDS011 dust sensors measuring PM10 (P1) and PM2.5 (P2) levels.",
             # Don't use args_schema to avoid parameter handling issues
+            return_direct=False
+        ),
+        StructuredTool.from_function(
+            func=prepare_sensor_data_for_visualization,
+            name="prepare_sensor_data",
+            description="Prepare the latest fetched sensor data for visualization with the plotting tools. Use this after fetch_latest_sensor_data and before using any visualization tools.",
+            return_direct=False
+        ),
+        StructuredTool.from_function(
+            func=plot_sensor_data,
+            name="plot_sensor_data",
+            description="Create a time series plot of sensor data with sensible defaults. This is a specialized function for visualizing sensor data that automatically handles datetime formatting and grouping by value_type.",
             return_direct=False
         ),
         StructuredTool.from_function(
             func=fetch_sensor_data,
             name="fetch_specific_sensor_data",
-            description="Fetch data for a specific sensor by its API ID. Use this when you want data from a particular sensor.",
+            description="Fetch data for a specific sensor by its API ID.",
             args_schema=FetchSensorDataInput,
-            return_direct=False
-        ),
-        StructuredTool.from_function(
-            func=fetch_average_data,
-            name="fetch_average_sensor_data",
-            description="Fetch average data for all sensors within a specific timespan (5 minutes, 1 hour, or 24 hours).",
-            args_schema=FetchAverageDataInput,
             return_direct=False
         ),
         StructuredTool.from_function(
             func=get_sensor_types,
             name="get_available_sensor_types",
-            description="Get a list of available sensor types in the sensor.community network.",
+            description="Get a list of available sensor types in the sensor.community network, with SDS011 being the most reliable for dust measurements.",
             return_direct=False
         ),
         StructuredTool.from_function(
             func=get_value_types,
             name="get_sensor_value_types",
-            description="Get a mapping of value types to their descriptions, explaining what each measurement represents.",
+            description="Get a mapping of value types to their descriptions, particularly P1 (PM10) and P2 (PM2.5) values from dust sensors.",
             return_direct=False
         ),
-        # Time series visualization tools
+        # Simple time series visualization for sensor data
         StructuredTool.from_function(
-            func=plot_sensor_time_series,
-            name="plot_sensor_time_series",
-            description="Create a time series line plot for sensor data. Perfect for visualizing how measurements change over time.",
-            args_schema=TimeSeriesPlotInput,
-            return_direct=False
-        ),
-        StructuredTool.from_function(
-            func=compare_sensor_time_periods,
-            name="compare_sensor_time_periods",
-            description="Compare sensor readings between two time periods (e.g., morning vs evening) with statistical analysis.",
-            args_schema=TimePeriodsComparisonInput,
+            func=plot_line,
+            name="plot_sensor_data",
+            description="Create a simple line plot for sensor data values over time.",
+            args_schema=PlotLineInput,
             return_direct=False
         ),
         # Pollution analysis tools
         StructuredTool.from_function(
             func=analyze_pollution_data,
             name="analyze_air_quality",
-            description="Analyze air quality data with Air Quality Index (AQI) calculation, statistics, and visualizations. Useful for understanding pollution levels and health implications.",
+            description="Analyze air quality data with Air Quality Index (AQI) calculation, statistics, and visualizations.",
             args_schema=PollutionAnalysisInput,
             return_direct=False
         ),
         StructuredTool.from_function(
             func=compare_pm10_pm25,
             name="compare_pm10_pm25_levels",
-            description="Create a specialized visualization comparing PM10 and PM2.5 levels over time, including correlation analysis and statistics. Useful for understanding the relationship between different particulate matter sizes.",
+            description="Compare PM10 and PM2.5 levels over time, including correlation analysis.",
             args_schema=PM10PM25ComparisonInput,
             return_direct=False
         )
@@ -556,35 +620,33 @@ def get_sensor_tools() -> List[StructuredTool]:
 
 def get_enhanced_visualization_tools() -> List[StructuredTool]:
     """
-    Get the list of enhanced visualization tools for sensor.community data.
+    Get the list of simplified visualization tools for sensor.community data.
     
     Returns:
-        List[StructuredTool]: A list of enhanced visualization tool objects
+        List[StructuredTool]: A list of visualization tool objects focused on PM data
     """
     return [
         StructuredTool.from_function(
-            func=create_enhanced_time_series_plot,
-            name="create_enhanced_time_series",
-            description="Create an enhanced time series visualization with advanced features like confidence intervals, annotations, and statistical summaries.",
-            args_schema=EnhancedTimeSeriesInput,
-            return_direct=False
-        ),
-        StructuredTool.from_function(
-            func=create_enhanced_pm_comparison,
+            func=compare_pm10_pm25,
             name="create_pm_comparison",
-            description="Create a comprehensive comparison of PM10 and PM2.5 pollution levels, including correlation analysis, ratio calculation, and threshold visualization.",
-            args_schema=PMComparisonInput,
+            description="Create a simplified comparison of PM10 (P1) and PM2.5 (P2) pollution levels from SDS011 sensors.",
+            args_schema=PM10PM25ComparisonInput,
             return_direct=False
         )
     ]
 
 def get_all_tools() -> List[StructuredTool]:
     """
-    Get a complete list of all available tools.
-    
-    This function returns all tools from all categories in a single list.
+    Get all available tools with a simplified approach focusing on core functionality.
     
     Returns:
-        List[StructuredTool]: A complete list of all tool objects
+        List[StructuredTool]: A list of all available tool objects
     """
-    return get_visualization_tools() + get_sensor_tools() + get_enhanced_visualization_tools()
+    # Combine all tool lists but remove duplicates that might exist in multiple categories
+    all_tools = get_visualization_tools() + get_sensor_tools()
+    
+    # We'll only add enhanced tools that aren't already in the other categories
+    # For this simplified version, we're not including enhanced visualization tools
+    # to avoid duplication with compare_pm10_pm25_levels
+    
+    return all_tools

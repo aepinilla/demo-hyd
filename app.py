@@ -144,11 +144,9 @@ with col2:
         st.markdown("### General Queries")
         sensor_examples = [
             "Show the latest SDS011 dust sensor readings",  # Confirmed sensor type
-            "Get DHT22 temperature and humidity data",  # Confirmed sensor type
-            "Show P1 (PM10) pollution values from SDS011 sensors",  # Confirmed value_type
-            "Display P2 (PM2.5) fine particulate measurements",  # Confirmed value_type
-            "Compare P1 and P2 pollution levels from the same sensors",  # Comparing PM10 and PM2.5
-            "Find the average PM10 pollution level across all sensors",  # Aggregation
+            # "What type of pollution data does the API contain?",
+            # "What is the average PM10 (P1) level from SDS011 sensors?",
+            # "What is the average PM2.5 (P2) level from SDS011 sensors?"
         ]
         
         for i, example in enumerate(sensor_examples):
@@ -157,23 +155,20 @@ with col2:
                 st.session_state["user_input"] = example
                 st.rerun()
         
-        st.markdown("### Time Series Examples")
-        time_series_examples = [
-            "Create a line plot of P1 (PM10) pollution levels over time",
-            "Show how P2 (PM2.5) fine particulate values change over time",
-            "Compare P1 and P2 pollution readings from SDS011 sensors",
-            "Create a detailed comparison of PM10 and PM2.5 levels with correlation analysis",
-            "Plot a time series of particulate matter measurements",
-            "Analyze pollution trends in the latest sensor data",
-            "Visualize air quality by comparing PM10 levels across different time periods",
-            "Create a time series showing PM2.5 pollution levels in urban areas"
-        ]
+        # st.markdown("### Time Series Examples")
+        # time_series_examples = [
+        #     "Create a line plot of P1 (PM10) pollution levels over time",
+        #     "Show how P2 (PM2.5) fine particulate values change over time",
+        #     "Compare P1 and P2 pollution readings from SDS011 sensors",
+        #     "Analyze air quality based on PM10 and PM2.5 levels",
+        #     "Plot PM10 and PM2.5 data and show their correlation"
+        # ]
         
-        for i, example in enumerate(time_series_examples):
-            if st.button(example, key=f"example_timeseries_{i}"):
-                # Store the example query in session state and force rerun
-                st.session_state["user_input"] = example
-                st.rerun()
+        # for i, example in enumerate(time_series_examples):
+        #     if st.button(example, key=f"example_timeseries_{i}"):
+        #         # Store the example query in session state and force rerun
+        #         st.session_state["user_input"] = example
+        #         st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
 

@@ -28,3 +28,17 @@ def prepare_dataframe_for_streamlit(df):
             df[col] = df[col].astype(str)
             
     return df
+
+# Add an alias for the function to maintain compatibility    
+def ensure_string_columns(df):
+    """
+    Alias for prepare_dataframe_for_streamlit.
+    Converts object columns to strings to avoid PyArrow serialization errors.
+    
+    Args:
+        df: The pandas DataFrame to prepare
+        
+    Returns:
+        A DataFrame with object columns converted to strings
+    """
+    return prepare_dataframe_for_streamlit(df)

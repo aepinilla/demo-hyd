@@ -5,11 +5,13 @@ This module provides functions for creating common data visualizations
 with Seaborn and displaying them in Streamlit.
 """
 
-import streamlit as st
+from typing import Any, Dict, List, Optional
+from matplotlib.ticker import MaxNLocator
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
-from typing import List, Optional, Dict, Any
+import streamlit as st
 
 # Store the loaded dataset in session state
 if "dataset" not in st.session_state:
@@ -17,10 +19,10 @@ if "dataset" not in st.session_state:
 
 def load_dataset(file_path: str) -> str:
     """
-    Load a dataset from a CSV file and store it in session state.
+    Load a dataset from a CSV file or use sensor data from session state.
     
     Args:
-        file_path (str): Path to the CSV file
+        file_path (str): Path to the CSV file or special keyword for session data
         
     Returns:
         str: Information about the loaded dataset
@@ -30,29 +32,30 @@ def load_dataset(file_path: str) -> str:
         if isinstance(file_path, str):
             file_path = clean_column_name(file_path)
         
-        # Special case for example datasets
-        if file_path.lower() == "example" or file_path.lower() == "sample":
-            import os
-            example_path = os.path.join("examples", "sample_data.csv")
-            if os.path.exists(example_path):
-                file_path = example_path
+        # Special case for sensor data
+        if file_path.lower() in ['sensor_data', 'sensor', 'latest_sensor_data', 'latest_sds011_sensor_data.csv', 'sds011']:
+            # Check if we have sensor data in session state
+            if 'latest_data' in st.session_state and not st.session_state.latest_data.empty:
+                df = st.session_state.latest_data
+                # Store in dataset session state for visualization tools
+                st.session_state.dataset = df
+                source = "sensor.community API"
             else:
-                return "Error: Example dataset not found. Please upload your own CSV file."
-        
-        if not file_path.endswith('.csv'):
-            return "Error: Only CSV files are supported for visualization"
-            
-        # Load the dataset
-        df = pd.read_csv(file_path)
-        
-        # Store in session state
-        st.session_state.dataset = df
+                return "Error: No sensor data available. Please fetch sensor data first using fetch_latest_sensor_data."
+        elif not file_path.endswith('.csv'):
+            return "Error: Only CSV files are supported for file-based visualization. For sensor data, use 'sensor_data' as the file path."
+        else:
+            # Load the dataset from CSV file
+            df = pd.read_csv(file_path)
+            # Store in session state
+            st.session_state.dataset = df
+            source = file_path
         
         # Return information about the dataset
         return f"""
 ## Dataset Loaded Successfully
 
-**File:** {file_path}
+**Source:** {source}
 **Shape:** {df.shape[0]} rows × {df.shape[1]} columns
 **Columns:** {', '.join(df.columns.tolist())}
 
@@ -69,12 +72,12 @@ def load_dataset(file_path: str) -> str:
     except Exception as e:
         return f"Error loading dataset: {str(e)}"
 
-def plot_histogram(column: str, bins: int = 10, title: str = "Histogram") -> str:
+def plot_histogram(column: Optional[str] = None, bins: int = 10, title: str = "Histogram") -> str:
     """
     Create a histogram using Seaborn and display it in Streamlit.
     
     Args:
-        column (str): Column to plot
+        column (Optional[str]): Column to plot. If None, will auto-select first numeric column.
         bins (int): Number of bins
         title (str): Plot title
         
@@ -86,6 +89,15 @@ def plot_histogram(column: str, bins: int = 10, title: str = "Histogram") -> str
     
     try:
         df = st.session_state.dataset
+        
+        # Get all numeric columns
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        
+        if not numeric_cols:
+            return "Error: The dataset has no numeric columns to plot a histogram with."
+        
+        # Display info to the user about available columns
+        st.info(f"Available numeric columns for histogram: {', '.join(numeric_cols)}")
         
         # Check if column contains a JSON structure with parameters
         if isinstance(column, str) and '{' in column and '}' in column:
@@ -100,11 +112,23 @@ def plot_histogram(column: str, bins: int = 10, title: str = "Histogram") -> str
             if 'title' in params:
                 title = params['title']
         
-        # Clean the column name
-        column = clean_column_name(column)
+        # If no column specified, use the first numeric column
+        if column is None:
+            column = numeric_cols[0]
+            st.info(f"Auto-selected numeric column: {column}")
+        else:
+            # Clean the column name
+            column = clean_column_name(column)
         
+        # Check if column exists
         if column not in df.columns:
-            return f"Error: Column '{column}' not found in dataset. Available columns: {', '.join(df.columns)}"
+            st.warning(f"Column '{column}' not found in dataset. Auto-selecting first numeric column.")
+            column = numeric_cols[0]
+        
+        # Check if column is numeric
+        if column not in numeric_cols:
+            st.warning(f"Column '{column}' is not numeric. Auto-selecting first numeric column for histogram.")
+            column = numeric_cols[0]
         
         # Create a new figure
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -134,6 +158,9 @@ def plot_histogram(column: str, bins: int = 10, title: str = "Histogram") -> str
 - **Max:** {stats['max']:.2f}
         """
     except Exception as e:
+        import traceback
+        st.error(f"Error creating histogram: {str(e)}")
+        st.error(traceback.format_exc())
         return f"Error creating histogram: {str(e)}"
 
 def parse_json_input(input_str):
@@ -187,14 +214,14 @@ def clean_column_name(column):
     
     return clean_column
 
-def plot_scatter(x_column: str, y_column: str = "", hue_column: Optional[str] = None, 
+def plot_scatter(x_column: Optional[str] = None, y_column: Optional[str] = None, hue_column: Optional[str] = None, 
                  title: str = "Scatter Plot") -> str:
     """
     Create a scatter plot using Seaborn and display it in Streamlit.
     
     Args:
-        x_column (str): Column for x-axis or JSON with parameters
-        y_column (str, optional): Column for y-axis. If empty, will auto-select
+        x_column (str, optional): Column for x-axis or JSON with parameters. If None, will auto-select.
+        y_column (str, optional): Column for y-axis. If None, will auto-select.
         hue_column (str, optional): Column for color grouping
         title (str): Plot title
         
@@ -219,39 +246,65 @@ def plot_scatter(x_column: str, y_column: str = "", hue_column: Optional[str] = 
             if 'title' in params:
                 title = params['title']
         
-        # Clean column names
-        x_column = clean_column_name(x_column)
-        y_column = clean_column_name(y_column) if y_column else ""
+        # Get numeric columns
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        
+        if not numeric_cols or len(numeric_cols) < 1:
+            return "Error: The dataset needs at least one numeric column for a scatter plot."
+            
+        # Display info to the user about available columns
+        st.info(f"Available numeric columns: {', '.join(numeric_cols)}")
+        
+        # Clean column names if provided
+        if x_column:
+            x_column = clean_column_name(x_column)
+        if y_column:
+            y_column = clean_column_name(y_column)
         if hue_column is not None:
             hue_column = clean_column_name(hue_column)
             
-        # Auto-select the first two numeric columns if needed
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        
-        if not numeric_cols or len(numeric_cols) < 2:
-            return "Error: The dataset needs at least two numeric columns for a scatter plot."
-            
-        # If x_column is empty or not found, use the first numeric column
-        if not x_column or x_column not in df.columns:
+        # Auto-select numeric columns if needed
+        if x_column is None or x_column == "":
+            # Auto-select first numeric column
+            x_column = numeric_cols[0]
+            st.info(f"Auto-selected '{x_column}' for x-axis")
+        elif x_column not in df.columns:
+            st.warning(f"Column '{x_column}' not found. Auto-selecting first numeric column.")
+            x_column = numeric_cols[0]
+        elif x_column not in numeric_cols:
+            st.warning(f"Column '{x_column}' is not numeric. Auto-selecting first numeric column.")
             x_column = numeric_cols[0]
             
-        # If y_column is empty or not found, use the second numeric column
-        # (or the first if x_column is already using the first)
-        if not y_column or y_column not in df.columns:
-            if x_column == numeric_cols[0] and len(numeric_cols) > 1:
+        if y_column is None or y_column == "":
+            # Auto-select second numeric column (or first if only one is available)
+            if len(numeric_cols) > 1:
+                # Try to select a different column than x_column
+                if x_column == numeric_cols[0]:
+                    y_column = numeric_cols[1]
+                else:
+                    y_column = numeric_cols[0]
+            else:
+                # If only one numeric column, use it for both axes
+                y_column = numeric_cols[0]
+            st.info(f"Auto-selected '{y_column}' for y-axis")
+        elif y_column not in df.columns:
+            st.warning(f"Column '{y_column}' not found. Auto-selecting an appropriate numeric column.")
+            if len(numeric_cols) > 1 and numeric_cols[0] == x_column:
+                y_column = numeric_cols[1]
+            else:
+                y_column = numeric_cols[0] 
+        elif y_column not in numeric_cols:
+            st.warning(f"Column '{y_column}' is not numeric. Auto-selecting an appropriate numeric column.")
+            if len(numeric_cols) > 1 and numeric_cols[0] == x_column:
                 y_column = numeric_cols[1]
             else:
                 y_column = numeric_cols[0]
         
-        # Validate columns (should be valid now due to auto-selection above)
-        if x_column not in df.columns:
-            return f"Error: Column '{x_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
-            
-        if y_column not in df.columns:
-            return f"Error: Column '{y_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
-        
-        if hue_column is not None and hue_column not in df.columns:
-            return f"Error: Hue column '{hue_column}' not found in dataset."
+        # Validate hue column if provided
+        if hue_column is not None:
+            if hue_column not in df.columns:
+                st.warning(f"Hue column '{hue_column}' not found. Not using color grouping.")
+                hue_column = None
         
         # Create a new figure
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -280,16 +333,21 @@ A correlation coefficient of {correlation:.4f} indicates a {"strong" if abs(corr
 {"positive" if correlation > 0 else "negative"} relationship.
         """
     except Exception as e:
+        import traceback
+        st.error(f"Error creating scatter plot: {str(e)}")
+        st.error(traceback.format_exc())
         return f"Error creating scatter plot: {str(e)}"
 
-def plot_line(x_column: str, y_column: str, title: str = "Line Plot") -> str:
+def plot_line(x_column: Optional[str] = None, y_column: Optional[str] = None, title: str = "Line Plot", hue_column: Optional[str] = None) -> str:
     """
     Create a line plot using Seaborn and display it in Streamlit.
+    Supports datetime columns for time series visualization.
     
     Args:
-        x_column (str): Column for x-axis
-        y_column (str): Column for y-axis
+        x_column (Optional[str]): Column for x-axis. If None, will auto-select first datetime or numeric column.
+        y_column (Optional[str]): Column for y-axis. If None, will auto-select first numeric column.
         title (str): Plot title
+        hue_column (Optional[str]): Column to use for grouping/coloring the lines
         
     Returns:
         str: Result message
@@ -300,6 +358,18 @@ def plot_line(x_column: str, y_column: str, title: str = "Line Plot") -> str:
     try:
         df = st.session_state.dataset
         
+        # Get all numeric and datetime columns
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        datetime_cols = df.select_dtypes(include=['datetime']).columns.tolist()
+        
+        if not numeric_cols or len(numeric_cols) < 1:
+            return "Error: The dataset needs at least one numeric column for a line plot."
+            
+        # Display info to the user about available columns
+        st.info(f"Available numeric columns: {', '.join(numeric_cols)}")
+        if datetime_cols:
+            st.info(f"Available datetime columns: {', '.join(datetime_cols)}")
+        
         # Check if x_column contains a JSON structure with parameters
         if isinstance(x_column, str) and '{' in x_column and '}' in x_column:
             params = parse_json_input(x_column)
@@ -309,41 +379,133 @@ def plot_line(x_column: str, y_column: str, title: str = "Line Plot") -> str:
                 y_column = params['y_column']
             if 'title' in params:
                 title = params['title']
+            if 'hue_column' in params:
+                hue_column = params['hue_column']
         
-        # Clean the column names
-        x_column = clean_column_name(x_column)
-        y_column = clean_column_name(y_column)
+        # Auto-select columns if needed
+        if x_column is None or x_column == "":
+            # Prioritize datetime columns for x-axis if available
+            if datetime_cols:
+                x_column = datetime_cols[0]
+                st.info(f"Auto-selected datetime column '{x_column}' for x-axis")
+            else:
+                # Otherwise use first numeric column
+                x_column = numeric_cols[0]
+                st.info(f"Auto-selected numeric column '{x_column}' for x-axis")
+        else:
+            # Clean the column name
+            x_column = clean_column_name(x_column)
+            
+        if y_column is None or y_column == "":
+            # Auto-select second numeric column (or first if only one is available)
+            if len(numeric_cols) > 1:
+                # Try to select a different column than x_column
+                if x_column == numeric_cols[0]:
+                    y_column = numeric_cols[1]
+                else:
+                    y_column = numeric_cols[0]
+            else:
+                # If only one numeric column, use it for both axes
+                y_column = numeric_cols[0]
+            st.info(f"Auto-selected '{y_column}' for y-axis")
+        else:
+            # Clean the column name
+            y_column = clean_column_name(y_column)
         
         # Validate columns
         if x_column not in df.columns:
-            return f"Error: Column '{x_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
+            st.warning(f"Column '{x_column}' not found in dataset. Auto-selecting appropriate column.")
+            if datetime_cols:
+                x_column = datetime_cols[0]
+            else:
+                x_column = numeric_cols[0]
+        elif x_column not in numeric_cols and x_column not in datetime_cols:
+            st.warning(f"Column '{x_column}' is neither numeric nor datetime. Auto-selecting appropriate column.")
+            if datetime_cols:
+                x_column = datetime_cols[0]
+            else:
+                x_column = numeric_cols[0]
+            
         if y_column not in df.columns:
-            return f"Error: Column '{y_column}' not found in dataset. Available columns: {', '.join(df.columns)}"
+            st.warning(f"Column '{y_column}' not found in dataset. Auto-selecting an appropriate numeric column.")
+            if len(numeric_cols) > 1 and numeric_cols[0] == x_column:
+                y_column = numeric_cols[1]
+            else:
+                y_column = numeric_cols[0]
+        elif y_column not in numeric_cols:
+            st.warning(f"Column '{y_column}' is not numeric. Auto-selecting an appropriate numeric column.")
+            if len(numeric_cols) > 1 and numeric_cols[0] == x_column:
+                y_column = numeric_cols[1]
+            else:
+                y_column = numeric_cols[0]
+                
+        # Validate hue column if provided
+        if hue_column is not None:
+            if hue_column not in df.columns:
+                st.warning(f"Hue column '{hue_column}' not found. Not using color grouping.")
+                hue_column = None
         
         # Create a new figure
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(12, 6))
         
-        # Create the line plot
-        sns.lineplot(data=df, x=x_column, y=y_column, ax=ax)
+        # Create the line plot with optional grouping by hue_column
+        sns.lineplot(data=df, x=x_column, y=y_column, hue=hue_column, ax=ax)
         
         # Set title and labels
         ax.set_title(title)
         ax.set_xlabel(x_column)
         ax.set_ylabel(y_column)
         
+        # Improve datetime axis formatting if x is a datetime column
+        if x_column in datetime_cols or pd.api.types.is_datetime64_any_dtype(df[x_column]):
+            # Rotate x-axis labels for better readability
+            plt.xticks(rotation=45)
+            
+            # Determine appropriate date format based on the time range
+            time_range = df[x_column].max() - df[x_column].min()
+            if time_range.total_seconds() < 3600:  # Less than an hour
+                date_format = '%H:%M:%S'
+            elif time_range.total_seconds() < 86400:  # Less than a day
+                date_format = '%H:%M'
+            elif time_range.days < 7:  # Less than a week
+                date_format = '%m-%d %H:%M'
+            elif time_range.days < 365:  # Less than a year
+                date_format = '%b %d'
+            else:  # More than a year
+                date_format = '%Y-%m-%d'
+                
+            # Format the date ticks nicely
+            ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter(date_format))
+            
+            # Add grid lines for better readability
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Set appropriate number of ticks based on data size
+            if len(df) > 20:
+                # For larger datasets, limit the number of ticks to avoid overcrowding
+                ax.xaxis.set_major_locator(MaxNLocator(10))
+            
+            # Adjust layout to make room for rotated labels
+            fig.tight_layout()
+        
         # Display the plot in Streamlit
         st.pyplot(fig)
         
         # Add some statistics
-        x_stats = df[x_column].describe()
         y_stats = df[y_column].describe()
+        
+        # For datetime columns, don't show numeric statistics
+        if x_column in datetime_cols:
+            date_range = f"From {df[x_column].min()} to {df[x_column].max()}"
+            x_stats_text = f"**Date Range:** {date_range}"
+        else:
+            x_stats = df[x_column].describe()
+            x_stats_text = f"**{x_column}:**\n- Mean: {x_stats['mean']:.2f}\n- Std Dev: {x_stats['std']:.2f}"
         
         return f"""
 ## Line Plot Statistics
 
-**{x_column}:**
-- Mean: {x_stats['mean']:.2f}
-- Std Dev: {x_stats['std']:.2f}
+{x_stats_text}
 
 **{y_column}:**
 - Mean: {y_stats['mean']:.2f}
@@ -354,6 +516,9 @@ def plot_line(x_column: str, y_column: str, title: str = "Line Plot") -> str:
 - {y_column}: {df[y_column].min()} to {df[y_column].max()}
         """
     except Exception as e:
+        import traceback
+        st.error(f"Error creating line plot: {str(e)}")
+        st.error(traceback.format_exc())
         return f"Error creating line plot: {str(e)}"
 
 def get_column_types(columns: str | None = None) -> str:
@@ -373,57 +538,92 @@ def get_column_types(columns: str | None = None) -> str:
     try:
         df = st.session_state.dataset
         
-        # If columns specified, parse and validate them
-        if columns:
-            # Remove any quotes and split by comma
-            columns = [col.strip('"\' ') for col in columns.split(',')]
-            # Validate columns
-            for col in columns:
-                if col not in df.columns:
-                    return f"Error: Column '{col}' not found in dataset. Available columns: {', '.join(df.columns)}"
-            # Filter DataFrame to specified columns
-            df = df[columns]
+        # Determine columns to check
+        if columns is not None:
+            # Handle special cases for malformed inputs
+            try:
+                # Remove extra quotes if present
+                columns = columns.strip('"\'')
+                
+                # If there are trailing quotes, strip them too
+                if columns.endswith('"') or columns.endswith("'"):
+                    columns = columns[:-1]
+                
+                # Clean and split columns
+                col_list = [clean_column_name(col) for col in columns.split(',')]
+                
+                # Remove any empty strings
+                col_list = [col for col in col_list if col]
+                
+                # If we end up with no columns, use all
+                if not col_list:
+                    col_list = df.columns.tolist()
+            except Exception as e:
+                # If any error occurs in parsing, default to all columns
+                st.warning(f"Error parsing column list: {str(e)}. Using all columns instead.")
+                col_list = df.columns.tolist()
+        else:
+            col_list = df.columns.tolist()
         
-        # Get data types and basic info
-        info = []
-        info.append("## Column Information\n")
+        # Validate columns - ensure they exist in dataset
+        valid_cols = [col for col in col_list if col in df.columns]
         
-        for col in df.columns:
+        # If no valid columns, show an error
+        if not valid_cols:
+            return f"Error: None of the specified columns were found in the dataset. Available columns: {', '.join(df.columns)}"
+        
+        # If some columns were invalid, show a warning
+        invalid_cols = [col for col in col_list if col not in df.columns]
+        if invalid_cols:
+            st.warning(f"Some columns were not found: {', '.join(invalid_cols)}")
+        
+        # Build information about each column
+        info = ["## Column Information\n"]
+        
+        for col in valid_cols:
             dtype = df[col].dtype
             is_numeric = pd.api.types.is_numeric_dtype(dtype)
-            unique_count = df[col].nunique()
-            null_count = df[col].isnull().sum()
+            n_unique = df[col].nunique()
+            n_missing = df[col].isna().sum()
             
             info.append(f"### {col}")
-            info.append(f"- Data Type: {dtype}")
-            info.append(f"- Is Numeric: {is_numeric}")
-            info.append(f"- Unique Values: {unique_count}")
-            info.append(f"- Missing Values: {null_count}")
+            info.append(f"- **Type:** {dtype}")
+            info.append(f"- **Unique Values:** {n_unique}")
+            info.append(f"- **Missing Values:** {n_missing}")
             
-            # Add sample values
-            sample_values = df[col].dropna().head(3).tolist()
-            info.append(f"- Sample Values: {sample_values}\n")
+            # Add sample values with error handling
+            try:
+                sample_values = df[col].dropna().head(3).tolist()
+                # Convert all sample values to strings to ensure they can be displayed
+                sample_values = [str(val)[:50] for val in sample_values]
+                info.append(f"- Sample Values: {sample_values}\n")
+            except Exception as e:
+                info.append(f"- Sample Values: Error getting samples - {str(e)}\n")
             
-            # Add statistics for numeric columns
+            # Add statistics for numeric columns with error handling
             if is_numeric:
-                stats = df[col].describe()
-                info.append("**Statistics:**")
-                info.append(f"- Mean: {stats['mean']:.2f}")
-                info.append(f"- Std Dev: {stats['std']:.2f}")
-                info.append(f"- Min: {stats['min']:.2f}")
-                info.append(f"- Max: {stats['max']:.2f}\n")
+                try:
+                    stats = df[col].describe()
+                    info.append("**Statistics:**")
+                    info.append(f"- Mean: {stats.get('mean', 'N/A')}")
+                    info.append(f"- Std Dev: {stats.get('std', 'N/A')}")
+                    info.append(f"- Min: {stats.get('min', 'N/A')}")
+                    info.append(f"- Max: {stats.get('max', 'N/A')}\n")
+                except Exception as e:
+                    info.append(f"**Statistics:** Error calculating statistics - {str(e)}\n")
         
         return "\n".join(info)
     
     except Exception as e:
         return f"Error getting column types: {str(e)}"
-
-def plot_heatmap(columns: List[str] | str, title: str = "Correlation Heatmap") -> str:
+        
+def plot_heatmap(columns: List[str] | str = "all", title: str = "Correlation Heatmap") -> str:
     """
     Create a correlation heatmap using Seaborn and display it in Streamlit.
     
     Args:
-        columns (Union[List[str], str]): List of columns or comma-separated string of columns
+        columns (Union[List[str], str], optional): List of columns, comma-separated string of columns, or "all"
+            If "all" (default), automatically uses all numeric columns.
         title (str): Plot title
         
     Returns:
@@ -435,37 +635,65 @@ def plot_heatmap(columns: List[str] | str, title: str = "Correlation Heatmap") -
     try:
         df = st.session_state.dataset
         
+        # Get all numeric columns in the dataset
+        all_numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        
+        if len(all_numeric_cols) < 2:
+            return "Error: The dataset needs at least two numeric columns for a correlation heatmap."
+        
+        # Display info to the user about available columns
+        st.info(f"Available numeric columns: {', '.join(all_numeric_cols)}")
+        
         # Convert input to list of columns
         if isinstance(columns, str):
             # Remove any quotes that might be present
             columns = columns.strip('"\'')
             
-            # Handle 'all' case
+            # Handle 'all' case - use all numeric columns
             if columns.lower() == "all":
-                columns = df.select_dtypes(include=['number']).columns.tolist()
+                columns = all_numeric_cols
+                st.info("Using all numeric columns for the heatmap.")
             else:
                 # Split by comma and clean each column name
                 columns = [col.strip() for col in columns.split(',')]
         
         # Clean column names
-        columns = [col.strip('"\' ') for col in columns]
+        columns = [clean_column_name(col) for col in columns]
         
-        # Validate columns
+        # Check which columns exist and are numeric
+        valid_columns = []
+        invalid_columns = []
+        non_numeric_columns = []
+        
         for col in columns:
             if col not in df.columns:
-                return f"Error: Column '{col}' not found in dataset. Available columns: {', '.join(df.columns)}"
+                invalid_columns.append(col)
+            elif col not in all_numeric_cols:
+                non_numeric_columns.append(col)
+            else:
+                valid_columns.append(col)
         
-        # Ensure we're only using numeric columns
-        numeric_cols = [col for col in columns if pd.api.types.is_numeric_dtype(df[col])]
+        # Provide feedback about invalid or non-numeric columns
+        if invalid_columns:
+            st.warning(f"Columns not found in dataset: {', '.join(invalid_columns)}")
         
-        if not numeric_cols:
-            return "Error: None of the specified columns are numeric. Correlation heatmap requires numeric data."
+        if non_numeric_columns:
+            st.warning(f"Non-numeric columns (excluded from heatmap): {', '.join(non_numeric_columns)}")
         
-        if len(numeric_cols) < 2:
-            return "Error: At least two numeric columns are required for a correlation heatmap."
+        # If no valid columns, use all numeric columns
+        if not valid_columns:
+            st.warning("No valid numeric columns specified. Using all numeric columns.")
+            valid_columns = all_numeric_cols
+        
+        # Ensure we have at least 2 columns
+        if len(valid_columns) < 2:
+            st.warning("Not enough valid numeric columns. Adding more columns from the dataset.")
+            # Add more numeric columns that weren't specified
+            additional_cols = [col for col in all_numeric_cols if col not in valid_columns]
+            valid_columns.extend(additional_cols[:2-len(valid_columns)])
         
         # Create correlation matrix
-        corr_matrix = df[numeric_cols].corr()
+        corr_matrix = df[valid_columns].corr()
         
         # Create a new figure
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -481,9 +709,9 @@ def plot_heatmap(columns: List[str] | str, title: str = "Correlation Heatmap") -
         
         # Find strongest correlations
         corr_pairs = [
-            (numeric_cols[i], numeric_cols[j], corr_matrix.iloc[i, j])
-            for i in range(len(numeric_cols))
-            for j in range(i+1, len(numeric_cols))
+            (valid_columns[i], valid_columns[j], corr_matrix.iloc[i, j])
+            for i in range(len(valid_columns))
+            for j in range(i+1, len(valid_columns))
         ]
         
         corr_pairs.sort(key=lambda x: abs(x[2]), reverse=True)
@@ -506,4 +734,7 @@ def plot_heatmap(columns: List[str] | str, title: str = "Correlation Heatmap") -
         
         return insights
     except Exception as e:
+        import traceback
+        st.error(f"Error creating heatmap: {str(e)}")
+        st.error(traceback.format_exc())
         return f"Error creating heatmap: {str(e)}"

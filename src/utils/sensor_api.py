@@ -10,9 +10,6 @@ from typing import Dict, Any, List, Optional
 import time
 from datetime import datetime, timedelta
 
-# Import the process_sensor_data function
-from src.utils.process_sensor_data import process_sensor_data
-
 # API Base URLs
 DATA_BASE_URL = "https://data.sensor.community"
 API_BASE_URL = "https://api.sensor.community"
@@ -34,12 +31,6 @@ def fetch_latest_data(data_type: Optional[str] = None, country: Optional[str] = 
     # Note: Based on API testing, the available sensor types are 'DHT22' and 'SDS011'
     # Also, the country filter may not work as expected (returns empty results)
     
-    # Import the sample data module
-    from src.utils.sample_data import get_sample_data
-    
-    # Flag to determine if we should use sample data
-    # Set to False to try the real API first, falling back to sample data if needed
-    use_sample_data = False
     # Print raw inputs for debugging
     print(f"Raw inputs - data_type: {type(data_type)}, {data_type}")
     print(f"Raw inputs - country: {type(country)}, {country}")
@@ -110,30 +101,30 @@ def fetch_latest_data(data_type: Optional[str] = None, country: Optional[str] = 
                 print(f"Regex extraction failed: {regex_error}")
                 pass
     
-    # Debug information
-    print(f"Fetching sensor data with parameters: data_type={data_type}, country={country}, area={area}, box={box}")
+    # Convert country names to country codes if needed
+    if isinstance(country, str) and country.lower() in ['germany', 'deutschland']:
+        country = 'DE'
+    elif isinstance(country, str) and country.lower() in ['france', 'frankreich']:
+        country = 'FR'
+    elif isinstance(country, str) and country.lower() in ['italy', 'italien']:
+        country = 'IT'
     
-    # Handle common user input issues
-    if country and len(country) > 2 and ',' not in country:
-        # User likely entered a full country name instead of a code
-        country_map = {
-            'germany': 'DE',
-            'france': 'FR',
-            'italy': 'IT',
-            'spain': 'ES',
-            'united kingdom': 'GB',
-            'uk': 'GB',
-            'netherlands': 'NL',
-            'belgium': 'BE',
-            'austria': 'AT',
-            'switzerland': 'CH',
-            'poland': 'PL'
-        }
-        country_lower = country.lower()
-        if country_lower in country_map:
-            print(f"Converting country name '{country}' to country code '{country_map[country_lower]}'")
-            country = country_map[country_lower]
-    # Construct the query parameters
+    # Determine the endpoint based on data_type
+    # Based on API testing, the dust endpoint has the most reliable data
+    if data_type and data_type.upper() in ['SDS011', 'PPD42NS']:
+        # Use the dust-specific endpoint for better results
+        url = f"{DATA_BASE_URL}/static/v2/data.dust.min.json"
+        print(f"Using dust/particulate matter endpoint: {url}")
+    elif data_type and data_type.upper() in ['DHT22', 'BME280', 'BMP180']:
+        # Use the temperature-specific endpoint
+        url = f"{DATA_BASE_URL}/static/v2/data.temp.min.json"
+        print(f"Using temperature/humidity endpoint: {url}")
+    else:
+        # Default to the main data endpoint
+        url = f"{DATA_BASE_URL}/static/v1/data.json"
+        print(f"Using default endpoint: {url}")
+    
+    # Prepare parameters
     params = {}
     if data_type:
         params['type'] = data_type
@@ -143,41 +134,6 @@ def fetch_latest_data(data_type: Optional[str] = None, country: Optional[str] = 
         params['area'] = area
     if box:
         params['box'] = box
-    
-    # Set User-Agent header as required by the API
-    headers = {'User-Agent': 'HackYourDistrict2025/1.0 (data-visualization-assistant)'}
-    
-    # Based on API testing, we should prioritize the static endpoints since they have more data
-    # The filter endpoint with country=DE returns empty results
-    
-    # Choose the appropriate endpoint based on the parameters
-    if data_type and data_type.lower() in ['dht22', 'temperature', 'humidity']:
-        # For temperature/humidity sensors
-        url = f"{DATA_BASE_URL}/static/v2/data.temp.min.json"
-        print(f"Using temperature/humidity endpoint: {url}")
-    elif data_type and data_type.lower() in ['sds011', 'pm2.5', 'pm10', 'p1', 'p2', 'dust']:
-        # For dust/particulate matter sensors
-        url = f"{DATA_BASE_URL}/static/v2/data.dust.min.json"
-        print(f"Using dust/particulate matter endpoint: {url}")
-    elif any([country, area, box]):
-        # Try the filter endpoint, but it may return empty results
-        url = f"{DATA_BASE_URL}/airrohr/v1/filter/"
-        print(f"Using filter endpoint: {url} (note: may return empty results)")
-    else:
-        # Default to all data
-        url = f"{DATA_BASE_URL}/static/v1/data.json"
-        print(f"Using default endpoint: {url}")
-    
-    # Only use sample data if explicitly requested
-    if use_sample_data:
-        print("Using sample data instead of live API")
-        sample_df = get_sample_data(data_type)
-        
-        # Store the data in session state for visualization tools to use
-        import streamlit as st
-        st.session_state.latest_data = sample_df
-        
-        return sample_df
     
     # Make the API request if not using sample data
     try:
@@ -190,41 +146,118 @@ def fetch_latest_data(data_type: Optional[str] = None, country: Optional[str] = 
         print(f"With parameters: {params}")
         print(f"Using headers: {headers}")
         
-        # Increase timeout to handle potential slow responses
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        
-        # Check if the request was successful
-        response.raise_for_status()
+        # Make the API request with improved timeout settings
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=(5, 30))  # Connect timeout of 5s, read timeout of 30s
+            response.raise_for_status()
+        except requests.exceptions.ConnectTimeout:
+            raise Exception(f"Connection to {url} timed out. Please check your network connection or try again later.")
+        except requests.exceptions.ReadTimeout:
+            raise Exception(f"Reading data from {url} timed out. The server might be under heavy load. Please try again later.")
+        except requests.exceptions.ConnectionError:
+            raise Exception(f"Failed to connect to {url}. Please check your network connection or try again later.")
         
         # Parse the JSON response
         data = response.json()
         
-        # Check if we got data
-        if not data:
-            print("No data returned from API, falling back to sample data")
-            sample_df = get_sample_data(data_type)
-            
-            # Store the data in session state for visualization tools to use
-            import streamlit as st
-            st.session_state.latest_data = sample_df
-            
-            return sample_df
-            
         print(f"Successfully retrieved {len(data)} records from the API")
         
-        # Process the sensor data
-        df = process_sensor_data(data)
+        # Process the sensor data - inline implementation instead of calling a separate function
+        flat_data = []
+        
+        # Process each sensor data record
+        for item in data:
+            # Create a base record with common fields
+            record = {
+                'sensor_id': item.get('sensor', {}).get('id') if isinstance(item.get('sensor'), dict) else item.get('id'),
+                'location_id': item.get('location', {}).get('id') if isinstance(item.get('location'), dict) else None,
+                'sensor_type': item.get('sensor', {}).get('sensor_type', {}).get('name') if isinstance(item.get('sensor'), dict) and isinstance(item.get('sensor').get('sensor_type'), dict) else None,
+                'latitude': item.get('location', {}).get('latitude') if isinstance(item.get('location'), dict) else item.get('latitude'),
+                'longitude': item.get('location', {}).get('longitude') if isinstance(item.get('location'), dict) else item.get('longitude'),
+                'timestamp': item.get('timestamp')
+            }
+            
+            # Extract sensordatavalues - this is a list of dicts in the API
+            if 'sensordatavalues' in item:
+                sensor_data = item.get('sensordatavalues')
+                
+                # Handle different formats of sensordatavalues
+                if isinstance(sensor_data, list):
+                    # Format: list of dicts with value_type and value
+                    for value_item in sensor_data:
+                        value_type = value_item.get('value_type')
+                        value = value_item.get('value')
+                        
+                        if value_type and value:
+                            new_record = record.copy()
+                            new_record['value_type'] = value_type
+                            new_record['value'] = value
+                            flat_data.append(new_record)
+                            
+                            # Try to determine sensor type from value_type if not already set
+                            if not new_record['sensor_type']:
+                                if value_type in ['P1', 'P2']:
+                                    new_record['sensor_type'] = 'SDS011'
+                                elif value_type in ['temperature', 'humidity']:
+                                    new_record['sensor_type'] = 'DHT22'
+                elif isinstance(sensor_data, dict):
+                    # Format: dict with value_type as keys
+                    for value_type, value in sensor_data.items():
+                        new_record = record.copy()
+                        new_record['value_type'] = value_type
+                        new_record['value'] = value
+                        flat_data.append(new_record)
+                        
+                        # Try to determine sensor type from value_type if not already set
+                        if not new_record['sensor_type']:
+                            if value_type in ['P1', 'P2']:
+                                new_record['sensor_type'] = 'SDS011'
+                            elif value_type in ['temperature', 'humidity']:
+                                new_record['sensor_type'] = 'DHT22'
+        
+        # If no data was processed, return empty DataFrame
+        if not flat_data:
+            print("No data could be extracted from the API response")
+            return pd.DataFrame(columns=['sensor_id', 'sensor_type', 'location_id', 
+                                        'latitude', 'longitude', 'timestamp', 
+                                        'value_type', 'value'])
+        
+        # Create DataFrame from processed data
+        df = pd.DataFrame(flat_data)
+        
+        # Convert numeric values
+        numeric_columns = ['value', 'latitude', 'longitude']
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # Convert timestamp to datetime if it exists
+        if 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            
+        print(f"Processed {len(df)} data points")
         
         # Convert object columns to strings to avoid PyArrow serialization issues
         for col in df.columns:
             if df[col].dtype == 'object':
                 df[col] = df[col].astype(str)
         
+        # Store the data in session state for other functions to use
+        import streamlit as st
+        st.session_state.latest_data = df
+        
         return df
     
     except Exception as e:
         print(f"Error fetching sensor data: {str(e)}")
-        # Return empty DataFrame with expected columns
+        
+        # Check if we have cached data in session state
+        import streamlit as st
+        if 'latest_data' in st.session_state and not st.session_state.latest_data.empty:
+            print("Using cached sensor data from previous successful request")
+            return st.session_state.latest_data
+        
+        # If no cached data, return empty DataFrame with expected columns
         return pd.DataFrame(columns=['sensor_id', 'sensor_type', 'location_id', 
                                     'latitude', 'longitude', 'timestamp', 
                                     'value_type', 'value'])
@@ -243,8 +276,15 @@ def fetch_sensor_data(sensor_id: str) -> pd.DataFrame:
     headers = {'User-Agent': 'HackYourDistrict2025/1.0 (data-visualization-assistant)'}
     
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
+        try:
+            response = requests.get(url, headers=headers, timeout=(5, 30))  # Connect timeout of 5s, read timeout of 30s
+            response.raise_for_status()
+        except requests.exceptions.ConnectTimeout:
+            raise Exception(f"Connection to {url} timed out. Please check your network connection or try again later.")
+        except requests.exceptions.ReadTimeout:
+            raise Exception(f"Reading data from {url} timed out. The server might be under heavy load. Please try again later.")
+        except requests.exceptions.ConnectionError:
+            raise Exception(f"Failed to connect to {url}. Please check your network connection or try again later.")
         data = response.json()
         
         # Convert to DataFrame (similar structure to above)
@@ -278,10 +318,22 @@ def fetch_sensor_data(sensor_id: str) -> pd.DataFrame:
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         
+        # Store the data in session state for other functions to use
+        import streamlit as st
+        st.session_state.latest_data = df
+        
         return df
     
     except Exception as e:
         print(f"Error fetching sensor data: {str(e)}")
+        
+        # Check if we have cached data in session state
+        import streamlit as st
+        if 'latest_data' in st.session_state and not st.session_state.latest_data.empty:
+            print("Using cached sensor data from previous successful request")
+            return st.session_state.latest_data
+        
+        # If no cached data, return empty DataFrame with expected columns
         return pd.DataFrame(columns=['sensor_id', 'sensor_type', 'location_id', 
                                     'latitude', 'longitude', 'timestamp', 
                                     'value_type', 'value'])
@@ -325,8 +377,15 @@ def fetch_average_data(timespan: str = '5m', data_type: Optional[str] = None) ->
         print(f"Making API request to: {url}")
         print(f"Using headers: {headers}")
         
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+        try:
+            response = requests.get(url, headers=headers, timeout=(5, 30))  # Connect timeout of 5s, read timeout of 30s
+            response.raise_for_status()
+        except requests.exceptions.ConnectTimeout:
+            raise Exception(f"Connection to {url} timed out. Please check your network connection or try again later.")
+        except requests.exceptions.ReadTimeout:
+            raise Exception(f"Reading data from {url} timed out. The server might be under heavy load. Please try again later.")
+        except requests.exceptions.ConnectionError:
+            raise Exception(f"Failed to connect to {url}. Please check your network connection or try again later.")
         data = response.json()
         
         print(f"Successfully retrieved data from {url}")
@@ -404,10 +463,23 @@ def fetch_average_data(timespan: str = '5m', data_type: Optional[str] = None) ->
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         
         print(f"Processed {len(df)} data points")
+        
+        # Store the data in session state for other functions to use
+        import streamlit as st
+        st.session_state.latest_data = df
+        
         return df
     
     except Exception as e:
         print(f"Error fetching average sensor data: {str(e)}")
+        
+        # Check if we have cached data in session state
+        import streamlit as st
+        if 'latest_data' in st.session_state and not st.session_state.latest_data.empty:
+            print("Using cached sensor data from previous successful request")
+            return st.session_state.latest_data
+        
+        # If no cached data, return empty DataFrame
         return pd.DataFrame()
 
 def get_sensor_types() -> List[str]:

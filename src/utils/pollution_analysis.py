@@ -207,11 +207,26 @@ def analyze_pollution_data(
         
         # If we have location data, create a map
         if 'latitude' in filtered_df.columns and 'longitude' in filtered_df.columns:
-            # Group by sensor location and calculate average
-            map_data = filtered_df.groupby(['sensor_id', 'latitude', 'longitude'])['value'].mean().reset_index()
-            
-            # Remove rows with missing coordinates
-            map_data = map_data.dropna(subset=['latitude', 'longitude'])
+            try:
+                # First, ensure we have numeric latitude and longitude
+                filtered_df['latitude'] = pd.to_numeric(filtered_df['latitude'], errors='coerce')
+                filtered_df['longitude'] = pd.to_numeric(filtered_df['longitude'], errors='coerce')
+                
+                # Filter out rows with invalid coordinates
+                valid_coords_df = filtered_df.dropna(subset=['latitude', 'longitude'])
+                
+                # Group by sensor location and calculate average - avoid MultiIndex issues
+                map_data = valid_coords_df.groupby('sensor_id').agg({
+                    'latitude': 'first',  # Take the first latitude for each sensor
+                    'longitude': 'first',  # Take the first longitude for each sensor
+                    'value': 'mean'       # Calculate the mean value for each sensor
+                }).reset_index()
+                
+                # Remove rows with missing coordinates
+                map_data = map_data.dropna(subset=['latitude', 'longitude'])
+            except Exception as e:
+                st.warning(f"Could not create geographical distribution map: {str(e)}")
+                map_data = pd.DataFrame()  # Empty DataFrame if there's an error
             
             if not map_data.empty:
                 st.subheader(f"Geographical Distribution of {get_pollutant_name(pollutant_type)}")
@@ -233,9 +248,18 @@ def analyze_pollution_data(
                     )
                 
                 # Create a color mapping
-                map_data['color'] = map_data['aqi_category'].apply(
-                    lambda x: AQI_COLORS[list(AQI_LABELS).index(x)] if pd.notna(x) else "#CCCCCC"
-                )
+                def get_color(aqi_category):
+                    if pd.isna(aqi_category):
+                        return "#CCCCCC"  # Default gray color for NaN values
+                    try:
+                        return AQI_COLORS[list(AQI_LABELS).index(aqi_category)]
+                    except (ValueError, IndexError):
+                        return "#CCCCCC"  # Default color if category not found
+                
+                map_data['color'] = map_data['aqi_category'].apply(get_color)
+                
+                # Ensure all values in the color column are valid strings
+                map_data = map_data.dropna(subset=['color'])
                 
                 # Display the map
                 st.map(map_data, latitude='latitude', longitude='longitude', color='color')
@@ -322,6 +346,35 @@ def compare_pm10_pm25(df: pd.DataFrame, time_period: str = '24h', resample_freq:
     for col in pm25_data.columns:
         if pm25_data[col].dtype == 'object':
             pm25_data[col] = pm25_data[col].astype(str)
+    
+    # Extra check for PyArrow serialization compatibility
+    try:
+        # Try converting to pyarrow table to check for errors
+        import pyarrow as pa
+        try:
+            pa.Table.from_pandas(pm10_data)
+            pa.Table.from_pandas(pm25_data)
+        except Exception as e:
+            st.warning(f"Fixing PyArrow serialization issue: {str(e)}")
+            # Additional conversion for problematic columns
+            for col in pm10_data.columns:
+                try:
+                    if pm10_data[col].dtype.name == 'object':
+                        pm10_data[col] = pm10_data[col].astype(str)
+                except:
+                    # Last resort - convert the column to string
+                    pm10_data[col] = pm10_data[col].astype(str)
+                    
+            for col in pm25_data.columns:
+                try:
+                    if pm25_data[col].dtype.name == 'object':
+                        pm25_data[col] = pm25_data[col].astype(str)
+                except:
+                    # Last resort - convert the column to string
+                    pm25_data[col] = pm25_data[col].astype(str)
+    except ImportError:
+        # PyArrow not available, no need to check
+        pass
     
     # Resample data to get regular time intervals
     pm10_resampled = pm10_data.set_index('timestamp')['value'].resample(resample_freq).mean().reset_index()
