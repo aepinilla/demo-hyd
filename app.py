@@ -72,7 +72,46 @@ col1, col2 = st.columns([3, 2])
 with col2:
     st.markdown("<div class='data-container'>", unsafe_allow_html=True)
     
-    # Dataset upload section
+    # Example suggestions
+    st.markdown("<div class='data-container'>", unsafe_allow_html=True)
+    st.subheader("Example Queries")
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Tabs for different types of examples
+    sensor_tab, data_tab = st.tabs(["Sensor.Community", "Dataset Examples"])
+    
+    with sensor_tab:
+        st.markdown("### Data Fetching & Visualization")
+        sensor_examples = [
+            # "Show the latest SDS011 dust sensor readings for P1 and P2",  # Confirmed sensor type
+            "Show a histogram of the first numeric column from SDS011 sensors",
+            "Create a scatter plot comparing the first two numeric columns from SDS011 sensors",
+            "Plot a correlation heatmap for all numeric columns from SDS011 sensors",
+        ]
+        
+        for i, example in enumerate(sensor_examples):
+            if st.button(example, key=f"example_general_{i}"):
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.rerun()
+
+    with data_tab:
+        # Dataset examples
+        dataset_examples = [
+            "Show a histogram of the first numeric column",
+            "Create a scatter plot comparing the first two numeric columns",
+            "Plot a correlation heatmap for all numeric columns",
+        ]
+        
+        for i, example in enumerate(dataset_examples):
+            if st.button(example, key=f"example_dataset_{i}"):
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.rerun()
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+     # Dataset upload section
     st.subheader("Dataset Upload")
     st.markdown("<hr>", unsafe_allow_html=True)
     
@@ -115,60 +154,6 @@ with col2:
             
         except Exception as e:
             st.error(f"Error loading dataset: {str(e)}")
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Example suggestions
-    st.markdown("<div class='data-container'>", unsafe_allow_html=True)
-    st.subheader("Example Queries")
-    st.markdown("<hr>", unsafe_allow_html=True)
-    
-    # Tabs for different types of examples
-    data_tab, sensor_tab = st.tabs(["Dataset Examples", "Sensor.Community"])
-    
-    with data_tab:
-        # Dataset examples
-        dataset_examples = [
-            "Show a histogram of the first numeric column",
-            "Create a scatter plot comparing the first two numeric columns",
-            "Plot a correlation heatmap for all numeric columns",
-        ]
-        
-        for i, example in enumerate(dataset_examples):
-            if st.button(example, key=f"example_dataset_{i}"):
-                # Store the example query in session state and force rerun
-                st.session_state["user_input"] = example
-                st.rerun()
-    
-    with sensor_tab:
-        st.markdown("### General Queries")
-        sensor_examples = [
-            "Show the latest SDS011 dust sensor readings",  # Confirmed sensor type
-            # "What type of pollution data does the API contain?",
-            # "What is the average PM10 (P1) level from SDS011 sensors?",
-            # "What is the average PM2.5 (P2) level from SDS011 sensors?"
-        ]
-        
-        for i, example in enumerate(sensor_examples):
-            if st.button(example, key=f"example_general_{i}"):
-                # Store the example query in session state and force rerun
-                st.session_state["user_input"] = example
-                st.rerun()
-        
-        # st.markdown("### Time Series Examples")
-        # time_series_examples = [
-        #     "Create a line plot of P1 (PM10) pollution levels over time",
-        #     "Show how P2 (PM2.5) fine particulate values change over time",
-        #     "Compare P1 and P2 pollution readings from SDS011 sensors",
-        #     "Analyze air quality based on PM10 and PM2.5 levels",
-        #     "Plot PM10 and PM2.5 data and show their correlation"
-        # ]
-        
-        # for i, example in enumerate(time_series_examples):
-        #     if st.button(example, key=f"example_timeseries_{i}"):
-        #         # Store the example query in session state and force rerun
-        #         st.session_state["user_input"] = example
-        #         st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -243,11 +228,19 @@ with col1:
                     context += f"The columns are: {', '.join(df.columns.tolist())}. "
                 
                 # Check if we're trying to visualize without a dataset
+                # Allow sensor data visualizations even without a dataset upload
+                is_sensor_visualization = ("sensor" in user_message.lower() or 
+                                         "sds011" in user_message.lower() or
+                                         "pm10" in user_message.lower() or 
+                                         "pm2.5" in user_message.lower() or
+                                         "p1" in user_message.lower() or 
+                                         "p2" in user_message.lower())
+                
                 if ("histogram" in user_message.lower() or 
                     "scatter" in user_message.lower() or 
                     "plot" in user_message.lower() or 
                     "heatmap" in user_message.lower() or
-                    "correlation" in user_message.lower()) and st.session_state.dataset is None:
+                    "correlation" in user_message.lower()) and st.session_state.dataset is None and not is_sensor_visualization:
                     
                     # Handle the case where visualization is requested without a dataset
                     full_response = "Please upload a dataset first before creating visualizations."

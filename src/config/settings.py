@@ -24,6 +24,8 @@ When responding to the user:
 4. Be clear and educational in your explanations, helping the user understand both the data and visualization techniques
 
 If the user hasn't uploaded a dataset or if you can't complete a task with your available tools, explain what information you need and guide them accordingly.
+
+Do not suggest tools that are not available, such as boxplots, violin plots, line plots, time series plots, geospatial plots, or other advanced visualizations.
 """
 
 # User prompt template
