@@ -195,7 +195,7 @@ with col1:
                         st.markdown(message["content"])
     else:
         # Display welcome message with standard Streamlit
-        st.info("Welcome! Upload a dataset and start asking questions about your data. I'll help you create beautiful visualizations and extract insights from your data.")
+        st.info("Welcome! You can ask me questions about the latests data available from sensor.community. Alternatively, you can upload a dataset and start asking questions about your data. I'll help you create beautiful visualizations and extract insights from your data.")
     
     # We don't need to initialize chat_input in session state
     # Streamlit manages this automatically
