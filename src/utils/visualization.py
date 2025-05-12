@@ -16,6 +16,10 @@ import streamlit as st
 # Store the loaded dataset in session state
 if "dataset" not in st.session_state:
     st.session_state.dataset = None
+    
+# Store the last time sensor data was fetched
+if "last_sensor_data_fetch" not in st.session_state:
+    st.session_state.last_sensor_data_fetch = None
 
 def load_dataset(file_path: str) -> str:
     """
@@ -617,6 +621,157 @@ def get_column_types(columns: str | None = None) -> str:
     except Exception as e:
         return f"Error getting column types: {str(e)}"
         
+def prepare_sensor_data(variables_to_plot: str = "all", force_refresh: bool = False) -> tuple:
+    """
+    Prepare sensor data for visualization. This function handles the specific requirements
+    of sensor data, including fetching from APIs, data transformation, and caching.
+    
+    Args:
+        variables_to_plot (str): Comma-separated list of variables to plot (e.g., "P1,P2")
+                               or "all" to include all available variables
+        force_refresh (bool): Whether to force a refresh of the data from the API
+                            even if it was recently fetched
+        
+    Returns:
+        tuple: (DataFrame, list of mapped variables, error message or None)
+    """
+    import streamlit as st
+    import pandas as pd
+    import datetime
+    
+    # Check if we need to fetch new data
+    current_time = datetime.datetime.now()
+    data_is_stale = True
+    
+    if not force_refresh and 'latest_data' in st.session_state and not st.session_state.latest_data.empty:
+        if st.session_state.last_sensor_data_fetch:
+            # Data is stale if it's more than 5 minutes old
+            time_diff = current_time - st.session_state.last_sensor_data_fetch
+            if time_diff.total_seconds() < 300:  # 5 minutes
+                data_is_stale = False
+    
+    # Fetch new data if needed
+    if data_is_stale or force_refresh or 'latest_data' not in st.session_state or st.session_state.latest_data.empty:
+        try:
+            # This would normally call the API, but for now we'll use a placeholder
+            st.info("Fetching fresh sensor data...")
+            
+            # In a real implementation, this would be a call to the sensor API
+            # For now, we'll just check if there's already data in the session state
+            if 'latest_data' not in st.session_state or st.session_state.latest_data.empty:
+                return pd.DataFrame(), [], "Error: No sensor data available. Please fetch sensor data first."
+            
+            # Update the timestamp
+            st.session_state.last_sensor_data_fetch = current_time
+        except Exception as e:
+            return pd.DataFrame(), [], f"Error fetching sensor data: {str(e)}"
+    
+    # Get the data from session state
+    df = st.session_state.latest_data
+    
+    # Create a mapping of user-friendly names to actual value_types
+    variable_mappings = {
+        'pm10': 'P1',
+        'pm2.5': 'P2',
+        'pm2_5': 'P2',
+        'temperature': 'temperature',
+        'humidity': 'humidity',
+        'pressure': 'pressure'
+    }
+    
+    # Handle 'all' case
+    if variables_to_plot.lower() == 'all':
+        mapped_vars = df['value_type'].unique().tolist()
+    else:
+        # Split by comma and clean each variable name
+        requested_vars = [v.strip().lower() for v in variables_to_plot.split(',')]
+        
+        # Map user-friendly names to actual value_types
+        mapped_vars = []
+        for var in requested_vars:
+            if var in variable_mappings:
+                mapped_vars.append(variable_mappings[var])
+            else:
+                # Try to find a close match
+                for available_var in df['value_type'].unique():
+                    if var in available_var.lower() or available_var.lower() in var:
+                        mapped_vars.append(available_var)
+                        break
+    
+    # Limit to 5 variables for readability
+    mapped_vars = mapped_vars[:5]
+    
+    if not mapped_vars:
+        available_vars = df['value_type'].unique().tolist()
+        error_msg = f"Error: Could not map requested variables to available value types. Available: {', '.join(available_vars)}"
+        return df, [], error_msg
+    
+    return df, mapped_vars, None
+
+
+def create_sensor_pivot_table(df: pd.DataFrame, variables: list) -> pd.DataFrame:
+    """
+    Create a pivot table from sensor data to properly align measurements by sensor and timestamp.
+    This ensures we're comparing values from the same sensors at the same times.
+    
+    Args:
+        df (DataFrame): The sensor data DataFrame
+        variables (list): List of variables to include in the pivot table
+        
+    Returns:
+        DataFrame: Pivot table with aligned sensor measurements
+    """
+    # Filter to only include the requested variables
+    filtered_df = df[df['value_type'].isin(variables)]
+    
+    # Create pivot table
+    pivot_df = filtered_df.pivot_table(
+        index=['sensor_id', 'timestamp'],
+        columns='value_type',
+        values='value',
+        aggfunc='mean'
+    ).reset_index()
+    
+    # Drop rows with NaN values in any of the requested variables
+    pivot_df = pivot_df.dropna(subset=variables)
+    
+    return pivot_df
+
+
+def check_sensor_data_quality(pivot_df: pd.DataFrame, variables: list) -> tuple:
+    """
+    Check sensor data quality, including suspiciously high correlations.
+    
+    Args:
+        pivot_df (DataFrame): Pivot table of sensor data
+        variables (list): List of variables to check
+        
+    Returns:
+        tuple: (bool indicating if data is suspicious, warning message or None)
+    """
+    # Check if we have enough data points
+    if len(pivot_df) < 3:
+        return True, "Warning: Not enough data points for reliable correlation analysis."
+    
+    # Check for suspiciously high correlations
+    if len(variables) >= 2:
+        corr_matrix = pivot_df[variables].corr()
+        
+        # Check if all correlations are suspiciously close to 1.0 or -1.0
+        suspicious = True
+        for i in range(len(variables)):
+            for j in range(i+1, len(variables)):
+                corr_value = corr_matrix.iloc[i, j]
+                if abs(corr_value) < 0.95:  # Not suspiciously high
+                    suspicious = False
+                    break
+        
+        if suspicious:
+            return True, "Warning: All correlations are suspiciously high (near 1.0 or -1.0). This may indicate data alignment issues."
+    
+    return False, None
+
+
 def plot_heatmap(columns: List[str] | str = "all", title: str = "Correlation Heatmap") -> str:
     """
     Create a correlation heatmap using Seaborn and display it in Streamlit.

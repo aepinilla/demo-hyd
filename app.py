@@ -20,7 +20,7 @@ from datetime import datetime
 from src.config.settings import USER_AVATAR, BOT_AVATAR
 from src.core.chat import initialize_chat_history, add_message_to_history, get_messages_for_llm
 from src.core.agents import create_agent_executor
-from src.core.tools import get_tools_by_context
+from src.core.tools.tools import get_tools_by_context
 # from src.ui.components import display_chat_history, create_chat_input
 
 # Set up Streamlit page config
@@ -101,6 +101,7 @@ with col2:
         st.markdown("### Data Fetching & Visualization")
         sensor_examples = [
             # "Show the latest SDS011 dust sensor readings for P1 and P2",  # Confirmed sensor type
+            "What variables are available in the sensor API and show their statistics",
             "Show a histogram of the first numeric column from SDS011 sensors",
             "Create a scatter plot comparing the first two numeric columns from SDS011 sensors",
             "Plot a correlation heatmap for all numeric columns from SDS011 sensors",
