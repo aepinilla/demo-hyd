@@ -10,6 +10,8 @@ from langchain.agents import AgentExecutor, create_react_agent
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+from src.core.custom_parser import GracefulReActOutputParser
+
 from src.config.settings import GPT_MODEL, SYSTEM_PROMPT
 
 def create_agent_executor(tools, verbose=True):
@@ -33,7 +35,7 @@ def create_agent_executor(tools, verbose=True):
     # Get tool names for the prompt
     tool_names = [tool.name for tool in tools]
     
-    # Create a React-compatible prompt template
+    # Create a React-compatible prompt template with clearer instructions
     template = """
     {system_prompt}
 
@@ -41,18 +43,25 @@ def create_agent_executor(tools, verbose=True):
 
     {tools}
 
-    To use a tool, please use the following format:
+    IMPORTANT: You MUST use the following format correctly for the system to work:
+
+    To use a tool:
     ```
-    Thought: I need to use a tool to help answer the user's question.
-    Action: tool_name
-    Action Input: the input to the tool
+    Thought: [your reasoning about what to do next]
+    Action: [name of the tool to use - must be one of the available tools]
+    Action Input: [input parameters for the tool - must be properly formatted]
     ```
 
-    When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
+    After you receive the tool output, you MUST continue with another action OR provide your final answer:
+
+    When you have your final answer:
     ```
-    Thought: I am ready to answer the question
-    Final Answer: the final answer to the human's question
+    Thought: [your reasoning about the final answer]
+    Final Answer: [your complete response to the human's question]
     ```
+
+    ALWAYS follow this format exactly. If you don't use a tool, go straight to Final Answer.
+    Never write 'Thought:' without immediately following it with either 'Action:' or 'Final Answer:'.
 
     Begin!
 
@@ -66,7 +75,9 @@ def create_agent_executor(tools, verbose=True):
     # Create the prompt with the required variables
     prompt = ChatPromptTemplate.from_template(template)
     
-    # Create the agent with the proper prompt
+    # Create the agent with the proper prompt and custom output parser for better error handling
+    custom_parser = GracefulReActOutputParser()
+    
     agent = create_react_agent(
         llm=llm, 
         tools=tools, 
@@ -74,15 +85,19 @@ def create_agent_executor(tools, verbose=True):
             system_prompt=SYSTEM_PROMPT,
             tools="\n\n".join([f"{tool.name}: {tool.description}" for tool in tools]),
             tool_names=tool_names
-        )
+        ),
+        output_parser=custom_parser
     )
     
-    # Create and return the agent executor
+    # Create and return the agent executor with enhanced error handling
     return AgentExecutor(
         agent=agent,
         tools=tools,
         verbose=verbose,
-        handle_parsing_errors=True
+        handle_parsing_errors=True,
+        max_iterations=10,  # Prevent infinite loops
+        max_execution_time=60,  # Timeout after 60 seconds
+        early_stopping_method="force"  # Force stop on errors rather than trying to recover
     )
 
 def run_agent(agent_executor, user_input, chat_history=None):
