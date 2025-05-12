@@ -1,4 +1,3 @@
-
 """
 Data Visualization Assistant with Streamlit and Seaborn.
 
@@ -6,8 +5,14 @@ This script provides an interactive interface for data visualization
 using Streamlit and Seaborn through a LangChain agent with a modern UI.
 """
 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 import streamlit as st
-from typing import List, Dict
+import json
+from typing import List, Dict, Any, Optional
+from src.utils.dataframe_utils import prepare_dataframe_for_streamlit
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
 import pandas as pd
 from datetime import datetime
@@ -129,39 +134,44 @@ with col2:
         
         for i, example in enumerate(dataset_examples):
             if st.button(example, key=f"example_dataset_{i}"):
-                if "user_input" in st.session_state:
-                    st.session_state.user_input = example
-                    st.rerun()
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.experimental_rerun()
     
     with sensor_tab:
         st.markdown("### General Queries")
         sensor_examples = [
-            "Show the latest PM2.5 readings from DE",  # Using country code DE for Germany
-            "Compare temperature readings across DE, FR, and IT",  # Using country codes
-            "Plot PM10 levels in Berlin (area=52.5200,13.4050,10)",
-            "Show a heatmap of sensor readings in the last 24 hours",
+            "Show the latest SDS011 dust sensor readings",  # Confirmed sensor type
+            "Get DHT22 temperature and humidity data",  # Confirmed sensor type
+            "Show P1 (PM10) pollution values from SDS011 sensors",  # Confirmed value_type
+            "Display P2 (PM2.5) fine particulate measurements",  # Confirmed value_type
+            "Compare P1 and P2 pollution levels from the same sensors",  # Comparing PM10 and PM2.5
+            "Find the average PM10 pollution level across all sensors",  # Aggregation
         ]
         
         for i, example in enumerate(sensor_examples):
             if st.button(example, key=f"example_general_{i}"):
-                if "user_input" in st.session_state:
-                    st.session_state.user_input = example
-                    st.rerun()
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.experimental_rerun()
         
         st.markdown("### Time Series Examples")
         time_series_examples = [
-            "Create a line plot of PM2.5 levels over the last 24 hours",
-            "Show how temperature changed over time for sensor ID 12345",
-            "Compare PM10 readings from morning vs evening today",
-            "Plot a time series of humidity levels in Munich",
-            "Show the trend of air quality in Berlin over the past hour"
+            "Create a line plot of P1 (PM10) pollution levels over time",
+            "Show how P2 (PM2.5) fine particulate values change over time",
+            "Compare P1 and P2 pollution readings from SDS011 sensors",
+            "Create a detailed comparison of PM10 and PM2.5 levels with correlation analysis",
+            "Plot a time series of particulate matter measurements",
+            "Analyze pollution trends in the latest sensor data",
+            "Visualize air quality by comparing PM10 levels across different time periods",
+            "Create a time series showing PM2.5 pollution levels in urban areas"
         ]
         
         for i, example in enumerate(time_series_examples):
             if st.button(example, key=f"example_timeseries_{i}"):
-                if "user_input" in st.session_state:
-                    st.session_state.user_input = example
-                    st.rerun()
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.experimental_rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -187,18 +197,25 @@ with col1:
         # Display welcome message with standard Streamlit
         st.info("Welcome! Upload a dataset and start asking questions about your data. I'll help you create beautiful visualizations and extract insights from your data.")
     
+    # We don't need to initialize chat_input in session state
+    # Streamlit manages this automatically
+    
     # Process pre-selected example if exists in session state
     user_message = ""
-    if "user_input" in st.session_state and st.session_state.user_input:
-        user_message = st.session_state.user_input
+    if "user_input" in st.session_state and st.session_state["user_input"]:
+        user_message = st.session_state["user_input"]
         # Clear it to avoid repeated submission
-        st.session_state.user_input = ""
-    else:
-        # Chat input field
-        user_message = st.chat_input(
-            "Ask a question about your data...", 
-            key="chat_input",
-        )
+        st.session_state["user_input"] = ""
+    
+    # Always show chat input field
+    chat_input = st.chat_input(
+        "Ask a question about your data...", 
+        key="chat_input"
+    )
+    
+    # If chat input is provided, use it as the user message
+    if chat_input:
+        user_message = chat_input
     
     if user_message:
         # Add user message to chat history

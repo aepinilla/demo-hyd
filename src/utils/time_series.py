@@ -24,10 +24,13 @@ def plot_time_series(df: pd.DataFrame,
         df: DataFrame containing the sensor data
         value_column: Column containing the values to plot
         time_column: Column containing the timestamps (default: 'timestamp')
-        group_by: Optional column to group by (e.g., 'sensor_id' or 'sensor_type')
+        group_by: Optional column to group by (default: None)
         title: Plot title
-        resample_freq: Optional frequency to resample data (e.g., '1H' for hourly)
+        resample_freq: Optional frequency for resampling (default: None)
     """
+    # Make a copy to avoid modifying the original
+    df = df.copy()
+    
     # Check if DataFrame is empty
     if df.empty:
         st.error("No data available for time series visualization.")
@@ -99,8 +102,18 @@ def plot_time_series(df: pd.DataFrame,
     plt.xticks(rotation=45)
     plt.tight_layout()
     
-    # Display the plot
-    st.pyplot(fig)
+    # Display the plot with a clear figure context to ensure Streamlit properly renders it
+    try:
+        # Make sure the figure is properly displayed in Streamlit
+        st.pyplot(fig)
+        # Print debug information to help with troubleshooting
+        print(f"Plot created successfully with {len(df)} data points")
+    except Exception as e:
+        st.error(f"Error displaying plot: {str(e)}")
+        print(f"Error displaying plot: {str(e)}")
+    
+    # Keep the figure context clear to avoid conflicts
+    plt.close(fig)
     
     # Show summary statistics
     st.write("### Summary Statistics")
@@ -189,7 +202,18 @@ def compare_time_periods(df: pd.DataFrame,
     ax2.set_ylabel(f"Mean {value_column}")
     
     plt.tight_layout()
-    st.pyplot(fig)
+    
+    # Display the plot with a clear figure context to ensure Streamlit properly renders it
+    try:
+        # Make sure the figure is properly displayed in Streamlit
+        st.pyplot(fig)
+        print(f"Comparison plot created successfully with period data")
+    except Exception as e:
+        st.error(f"Error displaying plot: {str(e)}")
+        print(f"Error displaying plot: {str(e)}")
+    
+    # Keep the figure context clear to avoid conflicts
+    plt.close(fig)
     
     # Show summary statistics
     st.write("### Summary Statistics")

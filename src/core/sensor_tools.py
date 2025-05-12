@@ -15,15 +15,19 @@ from src.utils.sensor_api import (
     get_sensor_types,
     get_value_types
 )
-from src.utils.time_series import plot_time_series, compare_time_periods
+from src.utils.pollution_analysis import analyze_pollution_data, compare_pm10_pm25
+from src.utils.sensor_plot_wrapper import plot_sensor_time_series, compare_sensor_time_periods
 
 # Define input schemas for sensor tools
 class FetchLatestDataInput(BaseModel):
     """Input schema for fetching latest sensor data."""
-    data_type: Optional[str] = Field(None, description="Comma-separated list of sensor types (e.g., 'SDS011,BME280')")
-    country: Optional[str] = Field(None, description="Comma-separated list of country codes (e.g., 'DE,BE')")
+    data_type: Optional[str] = Field(None, description="Sensor type to filter by (e.g., 'SDS011' for dust sensors or 'BME280' for temperature/humidity)")
+    country: Optional[str] = Field(None, description="Country code to filter by (e.g., 'DE' for Germany, 'FR' for France)")
     area: Optional[str] = Field(None, description="Area filter in format 'lat,lon,distance' (e.g., '52.5200,13.4050,10')")
     box: Optional[str] = Field(None, description="Box filter in format 'lat1,lon1,lat2,lon2' (e.g., '52.1,13.0,53.5,13.5')")
+    
+    class Config:
+        extra = "allow"  # Allow extra fields to be passed
 
 class FetchSensorDataInput(BaseModel):
     """Input schema for fetching data for a specific sensor."""
@@ -50,6 +54,19 @@ class TimePeriodsComparisonInput(BaseModel):
     period2: str = Field("evening", description="Name of the second period")
     title: str = Field("Time Period Comparison", description="Plot title")
 
+class PollutionAnalysisInput(BaseModel):
+    """Input schema for pollution data analysis."""
+    pollutant_type: str = Field("P1", description="Type of pollutant to analyze ('P1' for PM10 or 'P2' for PM2.5)")
+    calculate_aqi: bool = Field(True, description="Whether to calculate Air Quality Index")
+    show_statistics: bool = Field(True, description="Whether to show descriptive statistics")
+    show_visualization: bool = Field(True, description="Whether to create visualizations")
+
+class PM10PM25ComparisonInput(BaseModel):
+    """Input schema for comparing PM10 and PM2.5 levels."""
+    time_period: str = Field("24h", description="Time period to analyze ('24h', '7d', '30d')")
+    resample_freq: str = Field("1H", description="Frequency for resampling time series data (e.g., '1H' for hourly, '30min' for half-hourly)")
+    
+
 def get_sensor_tools() -> List[StructuredTool]:
     """
     Get the list of sensor data tools available to the agent.
@@ -62,7 +79,7 @@ def get_sensor_tools() -> List[StructuredTool]:
             func=fetch_latest_data,
             name="fetch_latest_sensor_data",
             description="Fetch the latest data from sensor.community API. Returns data from the past 5 minutes for various sensors based on optional filters.",
-            args_schema=FetchLatestDataInput,
+            # Don't use args_schema to avoid parameter handling issues
             return_direct=False
         ),
         StructuredTool.from_function(
@@ -93,17 +110,32 @@ def get_sensor_tools() -> List[StructuredTool]:
         ),
         # Time series visualization tools
         StructuredTool.from_function(
-            func=plot_time_series,
+            func=plot_sensor_time_series,
             name="plot_sensor_time_series",
             description="Create a time series line plot for sensor data. Perfect for visualizing how measurements change over time.",
             args_schema=TimeSeriesPlotInput,
             return_direct=False
         ),
         StructuredTool.from_function(
-            func=compare_time_periods,
+            func=compare_sensor_time_periods,
             name="compare_sensor_time_periods",
             description="Compare sensor readings between two time periods (e.g., morning vs evening) with statistical analysis.",
             args_schema=TimePeriodsComparisonInput,
+            return_direct=False
+        ),
+        # Pollution analysis tools
+        StructuredTool.from_function(
+            func=analyze_pollution_data,
+            name="analyze_air_quality",
+            description="Analyze air quality data with Air Quality Index (AQI) calculation, statistics, and visualizations. Useful for understanding pollution levels and health implications.",
+            args_schema=PollutionAnalysisInput,
+            return_direct=False
+        ),
+        StructuredTool.from_function(
+            func=compare_pm10_pm25,
+            name="compare_pm10_pm25_levels",
+            description="Create a specialized visualization comparing PM10 and PM2.5 levels over time, including correlation analysis and statistics. Useful for understanding the relationship between different particulate matter sizes.",
+            args_schema=PM10PM25ComparisonInput,
             return_direct=False
         )
     ]
