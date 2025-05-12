@@ -280,6 +280,7 @@ def prepare_sensor_data_for_visualization() -> str:
     """
     import streamlit as st
     import pandas as pd
+    from datetime import datetime
     
     # Check if we have sensor data in session state
     if 'latest_data' in st.session_state and not st.session_state.latest_data.empty:
@@ -306,8 +307,13 @@ def prepare_sensor_data_for_visualization() -> str:
             except Exception as e:
                 st.warning(f"Error converting timestamp column: {str(e)}")
         
-        # Copy the data to the dataset session state variable used by visualization tools
+        # Store the data in both session state variables for consistency
+        # This ensures both sensor-specific and standard visualization tools use the same data
+        st.session_state.latest_data = df
         st.session_state.dataset = df
+        
+        # Update the data fetch time
+        st.session_state.data_fetch_time = datetime.now()
         
         # Get information about the dataset
         return f"""
@@ -333,25 +339,40 @@ You can now use visualization tools like plot_scatter, plot_histogram, etc. dire
         return "Error: No sensor data available. Please fetch sensor data first using fetch_latest_sensor_data."
 
 
-def _prepare_sensor_data(variables_to_plot: str = "all") -> tuple:
+def _prepare_sensor_data(variables_to_plot: str = "all", force_refresh: bool = False) -> tuple:
     """
     Helper function to prepare sensor data for visualization.
     
     Args:
         variables_to_plot (str): Comma-separated list of variables to plot or 'all'
+        force_refresh (bool): If True, force a refresh of the data from the API
         
     Returns:
         tuple: (DataFrame with sensor data, list of mapped variable names, error message or None)
     """
     import streamlit as st
+    from datetime import datetime, timedelta
     
-    # Check if we have sensor data in session state and fetch it if not available
-    if 'latest_data' not in st.session_state or st.session_state.latest_data.empty:
-        st.info("Automatically fetching sensor data...")
+    # Force refresh if requested or if data is stale (older than 5 minutes)
+    current_time = datetime.now()
+    data_timestamp = st.session_state.get('data_fetch_time', datetime.min)
+    data_age = current_time - data_timestamp
+    
+    if force_refresh or data_age > timedelta(minutes=5) or 'latest_data' not in st.session_state or st.session_state.latest_data.empty:
+        st.info("Fetching fresh sensor data...")
+        # Clear existing data to ensure we get fresh data
+        if 'latest_data' in st.session_state:
+            del st.session_state.latest_data
+        if 'dataset' in st.session_state:
+            del st.session_state.dataset
+            
         # Fetch the latest data
         fetch_latest_data()
         # Prepare the data for visualization
         prepare_sensor_data_for_visualization()
+        
+        # Store the fetch time
+        st.session_state.data_fetch_time = current_time
         
         # Check again if data is available
         if 'latest_data' not in st.session_state or st.session_state.latest_data.empty:
@@ -419,8 +440,8 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
     import matplotlib.pyplot as plt
     import seaborn as sns
     
-    # Use the helper function to prepare data
-    df, mapped_vars, error_msg = _prepare_sensor_data(variables_to_plot)
+    # Force a refresh of the data to avoid caching issues
+    df, mapped_vars, error_msg = _prepare_sensor_data(variables_to_plot, force_refresh=True)
     
     if error_msg:
         st.warning(error_msg)
@@ -504,8 +525,8 @@ def plot_sensor_scatter(x_variable: str = "P1", y_variable: str = "P2", title: s
     import seaborn as sns
     from scipy.stats import pearsonr
     
-    # Use the helper function to prepare data
-    df, _, error_msg = _prepare_sensor_data("all")
+    # Force a refresh of the data to avoid caching issues
+    df, _, error_msg = _prepare_sensor_data("all", force_refresh=True)
     
     if error_msg:
         st.warning(error_msg)
@@ -616,8 +637,8 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
     import matplotlib.pyplot as plt
     import seaborn as sns
     
-    # Use the helper function to prepare data
-    df, mapped_vars, error_msg = _prepare_sensor_data(variables_to_plot)
+    # Force a refresh of the data to avoid caching issues
+    df, mapped_vars, error_msg = _prepare_sensor_data(variables_to_plot, force_refresh=True)
     
     if error_msg:
         st.warning(error_msg)
@@ -642,30 +663,76 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
     filtered_df = df[df['value_type'].isin(mapped_vars)].copy()
     
     # Create a pivot table based on available columns
-    pivot_data = {}
+    pivot_data = None
     
-    # Check if we have both sensor_id and timestamp columns for proper alignment
+    # Try different approaches to create a properly aligned pivot table
     if 'sensor_id' in filtered_df.columns and 'timestamp' in filtered_df.columns:
-        # Create a proper pivot table using sensor_id and timestamp as index
-        pivot_df = filtered_df.pivot_table(
-            index=['sensor_id', 'timestamp'],
-            columns='value_type',
-            values='value',
-            aggfunc='mean'  # In case there are duplicates
-        ).reset_index()
-        
-        # Drop the index columns for correlation calculation
-        pivot_data = pivot_df.drop(columns=['sensor_id', 'timestamp'])
-    else:
-        # Fallback to a simpler method if we don't have the required columns
+        # Best case: We have both sensor_id and timestamp for proper alignment
+        try:
+            pivot_df = filtered_df.pivot_table(
+                index=['sensor_id', 'timestamp'],
+                columns='value_type',
+                values='value',
+                aggfunc='mean'  # In case there are duplicates
+            ).reset_index()
+            
+            # Drop the index columns for correlation calculation
+            pivot_data = pivot_df.drop(columns=['sensor_id', 'timestamp'])
+            st.info(f"Created pivot table with {len(pivot_data)} rows using sensor_id and timestamp alignment")
+        except Exception as e:
+            st.warning(f"Error creating pivot table with sensor_id and timestamp: {str(e)}")
+            pivot_data = None
+    
+    # If the first method failed or wasn't available, try with just timestamp
+    if pivot_data is None and 'timestamp' in filtered_df.columns:
+        try:
+            # Try to align by timestamp only
+            pivot_df = filtered_df.pivot_table(
+                index=['timestamp'],
+                columns='value_type',
+                values='value',
+                aggfunc='mean'
+            ).reset_index()
+            
+            # Drop the index columns for correlation calculation
+            pivot_data = pivot_df.drop(columns=['timestamp'])
+            st.info(f"Created pivot table with {len(pivot_data)} rows using timestamp alignment")
+        except Exception as e:
+            st.warning(f"Error creating pivot table with timestamp: {str(e)}")
+            pivot_data = None
+    
+    # Last resort: Try to find any common dimensions for alignment
+    if pivot_data is None:
+        common_dimensions = [col for col in filtered_df.columns if col not in ['value_type', 'value']]
+        if common_dimensions:
+            try:
+                # Use available common dimensions for alignment
+                pivot_df = filtered_df.pivot_table(
+                    index=common_dimensions,
+                    columns='value_type',
+                    values='value',
+                    aggfunc='mean'
+                ).reset_index()
+                
+                # Drop the index columns for correlation calculation
+                pivot_data = pivot_df.drop(columns=common_dimensions)
+                st.info(f"Created pivot table with {len(pivot_data)} rows using {', '.join(common_dimensions)} alignment")
+            except Exception as e:
+                st.warning(f"Error creating pivot table with common dimensions: {str(e)}")
+                pivot_data = None
+    
+    # If all else fails, use the original fallback method but with a warning
+    if pivot_data is None:
+        st.warning("Could not create a properly aligned pivot table. Correlations may not be meaningful.")
+        pivot_data = {}
         for var in mapped_vars:
-            var_data = df[df['value_type'] == var]['value'].reset_index(drop=True)
+            var_data = filtered_df[filtered_df['value_type'] == var]['value'].reset_index(drop=True)
             if not var_data.empty:
                 pivot_data[var] = var_data
         pivot_data = pd.DataFrame(pivot_data)
     
     # Ensure we have data
-    if pivot_data.empty:
+    if pivot_data is None or pivot_data.empty:
         return "Error: No data available for the requested variables after filtering."
     
     # Drop rows with NaN values
@@ -676,6 +743,11 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
     
     # Calculate correlation matrix
     corr_matrix = pivot_data.corr()
+    
+    # Check for suspiciously high correlations (all 1.0 or very close to 1.0)
+    all_high_corr = (corr_matrix.abs() > 0.99).sum().sum() > len(mapped_vars) * 2
+    if all_high_corr:
+        st.warning("All correlations are suspiciously high (near 1.0). This may indicate an issue with data alignment or insufficient variation in the data.")
     
     # Create the heatmap
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -705,6 +777,9 @@ def plot_sensor_heatmap(variables_to_plot: str = "all", title: str = "Correlatio
     
     # Generate insights
     insights = ["## Correlation Insights\n"]
+    
+    if all_high_corr:
+        insights.append("**Note:** All correlations are suspiciously high, which may indicate data alignment issues or insufficient variation.\n")
     
     if not top_corrs.empty:
         insights.append("**Strongest correlations:**")

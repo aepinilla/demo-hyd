@@ -20,7 +20,7 @@ from datetime import datetime
 from src.config.settings import USER_AVATAR, BOT_AVATAR
 from src.core.chat import initialize_chat_history, add_message_to_history, get_messages_for_llm
 from src.core.agents import create_agent_executor
-from src.core.tools.tools import get_all_tools
+from src.core.tools import get_tools_by_context
 # from src.ui.components import display_chat_history, create_chat_input
 
 # Set up Streamlit page config
@@ -48,11 +48,28 @@ with st.container():
     st.markdown("<hr>", unsafe_allow_html=True)
 
 # Initialize tools and agent
-if "agent_executor" not in st.session_state:
-    # Create an agent executor with all consolidated tools
-    all_tools = get_all_tools()
-    agent_executor = create_agent_executor(all_tools)
-    st.session_state.agent_executor = agent_executor
+# Initialize different agent executors for different data contexts
+if "standard_agent" not in st.session_state:
+    # Create an agent executor for standard CSV data tools
+    standard_tools = get_tools_by_context("standard")
+    standard_agent = create_agent_executor(standard_tools)
+    st.session_state.standard_agent = standard_agent
+
+if "sensor_agent" not in st.session_state:
+    # Create an agent executor for sensor data tools
+    sensor_tools = get_tools_by_context("sensor")
+    sensor_agent = create_agent_executor(sensor_tools)
+    st.session_state.sensor_agent = sensor_agent
+
+if "combined_agent" not in st.session_state:
+    # Create an agent executor with all tools (for fallback)
+    all_tools = get_tools_by_context("all")
+    combined_agent = create_agent_executor(all_tools)
+    st.session_state.combined_agent = combined_agent
+    
+# Set the default agent
+if "current_agent" not in st.session_state:
+    st.session_state.current_agent = "combined_agent"
 
 # Initialize session states
 if "messages" not in st.session_state:
@@ -248,8 +265,23 @@ with col1:
                     st.error(full_response)
                     
                 else:
-                    # Run the agent with the callback handler
-                    response = st.session_state.agent_executor.invoke(
+                    # Select the appropriate agent based on the query content
+                    if is_sensor_visualization:
+                        # Use the sensor-specific agent for sensor data queries
+                        st.session_state.current_agent = "sensor_agent"
+                        agent_to_use = st.session_state.sensor_agent
+                        st.info("Using specialized sensor data visualization tools")
+                    elif st.session_state.dataset is not None:
+                        # Use the standard agent for CSV data queries when a dataset is loaded
+                        st.session_state.current_agent = "standard_agent"
+                        agent_to_use = st.session_state.standard_agent
+                    else:
+                        # Use the combined agent as a fallback
+                        st.session_state.current_agent = "combined_agent"
+                        agent_to_use = st.session_state.combined_agent
+                    
+                    # Run the selected agent with the callback handler
+                    response = agent_to_use.invoke(
                         {
                             "input": context + user_message,
                             "chat_history": get_messages_for_llm()
