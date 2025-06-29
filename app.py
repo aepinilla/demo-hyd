@@ -135,6 +135,11 @@ with col2:
     
     uploaded_file = st.file_uploader("Upload a CSV file for visualization", type=["csv"])
     
+    st.markdown("""
+    **Example Dataset**  
+    Download an example air pollution dataset from [Kaggle](https://www.kaggle.com/datasets/sazidthe1/global-air-pollution-data)
+    """)
+    
     if uploaded_file is not None:
         try:
             # Load the dataset
