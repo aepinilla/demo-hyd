@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 import json
+import plotly.express as px
+import plotly.graph_objects as go
 from typing import List, Dict, Any, Optional
 from src.utils.dataframe_utils import prepare_dataframe_for_streamlit
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
@@ -108,13 +110,39 @@ with col2:
         sensor_examples = [
             # "Show the latest SDS011 dust sensor readings for P1 and P2",  # Confirmed sensor type
             "What variables are available in the sensor API and show their statistics",
-            "Show a histogram of the first numeric column from SDS011 sensors",
-            "Create a scatter plot comparing the first two numeric columns from SDS011 sensors",
-            "Plot a correlation heatmap for all numeric columns from SDS011 sensors",
+            "Fetch the latest sensor data and show a summary",
+            "Get the latest particulate matter readings from dust sensors"
+        ]
+        
+        # Add buttons for the first set of examples
+        st.markdown("### Map Visualizations")
+        map_examples = [
+            "Create an interactive map showing P1 (PM10) pollution levels across sensor locations",
+            "Show a map visualization of P2 (PM2.5) concentrations with color gradient",
+            "Display sensor locations on a map with the highest pollution readings highlighted"
+        ]
+        
+        st.markdown("### Time Series Analysis")
+        time_examples = [
+            "Plot an interactive time series of P1 and P2 values with trend lines",
+            "Create a time series visualization with 5-point moving average for particulate matter",
+            "Show a comprehensive dashboard of sensor data with maps and time series plots"
         ]
         
         for i, example in enumerate(sensor_examples):
             if st.button(example, key=f"example_general_{i}"):
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.rerun()
+                
+        for i, example in enumerate(map_examples):
+            if st.button(example, key=f"example_map_{i}"):
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.rerun()
+                
+        for i, example in enumerate(time_examples):
+            if st.button(example, key=f"example_time_{i}"):
                 # Store the example query in session state and force rerun
                 st.session_state["user_input"] = example
                 st.rerun()

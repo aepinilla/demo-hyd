@@ -86,13 +86,9 @@ This project is designed for educational purposes, focusing on data visualizatio
 
 ## Docker
 
-To create the requirements.txt file, run:
+The Dockerfile is configured to automatically generate the requirements.txt file during the build process using the dependencies specified in pyproject.toml. This ensures that the Docker container always has the most up-to-date dependencies without requiring manual updates to requirements.txt.
 
-```bash
-uv pip freeze > requirements.txt
-```
-
-To build the Docker image, run:
+To build the Docker image, simply run:
 
 ```bash
 docker build -t hyd2025-demo .
