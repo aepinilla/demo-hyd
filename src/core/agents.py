@@ -25,12 +25,20 @@ def create_agent_executor(tools, verbose=True):
     Returns:
         AgentExecutor: An agent executor that can run the agent
     """
-    # Use the API key from environment variables
-    llm = ChatOpenAI(
-        model=GPT_MODEL, 
-        temperature=0, 
-        streaming=True
-    )
+    try:
+        # Try to use OpenAI with API key from environment variables
+        llm = ChatOpenAI(
+            model=GPT_MODEL, 
+            temperature=0, 
+            streaming=True
+        )
+    except Exception as e:
+        # If OpenAI fails, use a simple fallback handler that returns a message about the error
+        st.warning(f"OpenAI API connection failed: {str(e)}\nUsing fallback mode with limited functionality.")
+        
+        # Import a local fallback handler
+        from src.core.fallback_handler import FallbackHandler
+        llm = FallbackHandler()
     
     # Get tool names for the prompt
     tool_names = [tool.name for tool in tools]

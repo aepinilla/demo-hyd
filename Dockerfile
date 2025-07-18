@@ -21,10 +21,11 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Expose the port Streamlit will run on
-EXPOSE 8501
+EXPOSE 8080
 
-# Streamlit-specific config to allow Cloud Run to bind to $PORT
-ENV PORT 8501
+# Set the port for Streamlit
+ENV PORT=8080
 
-# Run Streamlit
-CMD streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+# Run Streamlit with JSON array format (recommended for production)
+# Using hardcoded port value instead of environment variable
+CMD ["streamlit", "run", "app.py", "--server.port", "8080", "--server.address", "0.0.0.0"]

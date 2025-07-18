@@ -213,11 +213,10 @@ with col1:
         st.session_state["user_input"] = ""
     
     # Get input from chat field if provided
-    chat_input_value = st.session_state.get("chat_input", "")
-    if chat_input_value:
-        user_message = chat_input_value
-        # Clear it to avoid repeated submission
-        st.session_state["chat_input"] = ""
+    # Note: We don't need to clear chat_input as Streamlit manages this automatically
+    # and attempting to set it directly causes StreamlitValueAssignmentNotAllowedError
+    if "chat_input" in st.session_state and st.session_state.chat_input:
+        user_message = st.session_state.chat_input
     
     if user_message:
         # Add user message to chat history
