@@ -16,6 +16,12 @@ API_BASE_URL = "https://api.sensor.community"
 
 def fetch_latest_data(data_type: Optional[str] = None, country: Optional[str] = None, 
                      area: Optional[str] = None, box: Optional[str] = None) -> pd.DataFrame:
+    # Add debugpy breakpoint at the start of the function
+    try:
+        import debugpy
+        debugpy.breakpoint()
+    except ImportError:
+        print("debugpy not available for breakpoints")
     """
     Fetch the latest data from sensor.community API.
     
@@ -31,9 +37,12 @@ def fetch_latest_data(data_type: Optional[str] = None, country: Optional[str] = 
     # Note: Based on API testing, the available sensor types are 'DHT22' and 'SDS011'
     # Also, the country filter may not work as expected (returns empty results)
     
-    # Print raw inputs for debugging
+    # Enhanced logging for debugging
+    print("==== FETCH_LATEST_DATA FUNCTION START ====")
     print(f"Raw inputs - data_type: {type(data_type)}, {data_type}")
     print(f"Raw inputs - country: {type(country)}, {country}")
+    print(f"Raw inputs - area: {type(area)}, {area}")
+    print(f"Raw inputs - box: {type(box)}, {box}")
     
     # Handle JSON input if it was passed as a string or dict
     if isinstance(data_type, dict):

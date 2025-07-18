@@ -8,6 +8,7 @@ using various statistical methods.
 import pandas as pd
 import numpy as np
 import streamlit as st
+import json
 import os
 from datetime import datetime
 import re
@@ -47,7 +48,6 @@ def find_matching_column(column_name: str, available_columns: List[str]) -> Opti
     print(f"DEBUG - Input column_name: {repr(column_name)}")
     
     # Handle JSON input
-    import json
     if isinstance(column_name, str) and column_name.strip().startswith('{'):
         try:
             # Try to parse as JSON
@@ -93,191 +93,171 @@ def remove_outliers_iqr(
     fill_method: Optional[str] = None
 ) -> str:
     """
-    Remove outliers from the dataset using the Interquartile Range (IQR) method.
+    Remove outliers from the dataset using the IQR method.
     
     Args:
-        columns (Union[List[str], str]): List of columns or 'all' for all numeric columns
-        iqr_multiplier (float): Multiplier for IQR to determine outlier threshold
-        drop_outliers (bool): Whether to drop outliers (True) or replace them (False)
-        fill_method (Optional[str]): Method to fill outliers if drop_outliers is False.
-                                    Options: 'mean', 'median', 'mode', 'nearest', None
+        columns: Columns to check for outliers. Can be 'all' for all numeric columns,
+                a single column name, or a list of column names.
+        iqr_multiplier: Multiplier for IQR to determine outlier boundaries.
+        drop_outliers: Whether to drop outliers or replace them.
+        fill_method: Method to fill outliers if drop_outliers is False.
+                    Options: 'mean', 'median', 'mode', 'ffill', 'bfill'.
     
     Returns:
-        str: Information about the outlier removal process
+        str: A report on the outlier removal process.
     """
-    if st.session_state.dataset is None:
-        return "Error: No dataset loaded. Please load a dataset first using load_dataset."
     
+    # Check if dataset exists in session state
+    if 'dataset' not in st.session_state or st.session_state.dataset is None or st.session_state.dataset.empty:
+        return "Error: No dataset found in session state. Please load or create a dataset first."
+    
+    # Make a copy of the dataset to avoid modifying the original
+    df = st.session_state.dataset.copy()
+    original_shape = df.shape
+    
+    # Get numeric columns
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    
+    # Define columns to exclude from outlier detection
+    excluded_columns = ["location_id", "sensor_id", "latitude", "longitude", "lat", "lon", "lng", "gps_lat", "gps_lon", "gps_longitude", "gps_latitude"]
+    numeric_cols = [col for col in numeric_cols if col not in excluded_columns]
+    
+    if not numeric_cols:
+        return "Error: No numeric columns found in the dataset. Outlier removal requires numeric data."
+    
+    # Process columns parameter to determine target columns
+    target_columns = []
+    
+    # Handle JSON format from LangChain
+    if isinstance(columns, str) and '{' in columns:
+        import re
+        column_match = re.search(r'"columns"\s*:\s*"([^"]+)"', columns)
+        if column_match:
+            columns = column_match.group(1)
+    
+    # Process the columns parameter
+    if columns == "all" or (isinstance(columns, str) and columns.strip().lower() == "all"):
+        target_columns = numeric_cols
+    elif isinstance(columns, str) and ',' in columns:
+        # Handle comma-separated list
+        column_list = [col.strip() for col in columns.split(',')]
+        for col in column_list:
+            if col in df.columns and col in numeric_cols:
+                target_columns.append(col)
+    elif isinstance(columns, str):
+        # Handle single column name
+        if columns in df.columns and columns in numeric_cols:
+            target_columns.append(columns)
+    elif isinstance(columns, list):
+        # Handle list of column names
+        for col in columns:
+            if col in df.columns and col in numeric_cols:
+                target_columns.append(col)
+    else:
+        return f"Error: Invalid columns parameter: {columns}. Use 'all' or specify column names."
+    
+    # Check if we have valid columns to process
+    if not target_columns:
+        return "Error: No valid numeric columns found for outlier removal. Please check your column names."
+    
+    # Track outliers per column
+    outliers_info = {}
+    
+    # Create a mask to track rows with outliers
+    outlier_mask = pd.Series(False, index=df.index)
+    
+    # Process each column
+    for col in target_columns:
+        # Calculate IQR
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        
+        # Define outlier boundaries
+        lower_bound = Q1 - iqr_multiplier * IQR
+        upper_bound = Q3 + iqr_multiplier * IQR
+        
+        # Identify outliers in this column
+        col_outliers = (df[col] < lower_bound) | (df[col] > upper_bound)
+        outlier_count = col_outliers.sum()
+        
+        # Store outlier info for reporting
+        outliers_info[col] = {
+            "count": outlier_count,
+            "percentage": (outlier_count / len(df)) * 100,
+            "range": [round(df[col].min(), 2), round(df[col].max(), 2)],
+            "boundaries": [round(lower_bound, 2), round(upper_bound, 2)]
+        }
+        
+        # Update the overall outlier mask
+        outlier_mask = outlier_mask | col_outliers
+    
+    # Handle outliers
+    if drop_outliers:
+        # Drop rows with outliers in any of the target columns
+        df = df[~outlier_mask]
+    else:
+        # Replace outliers with specified method for each column
+        for col in target_columns:
+            # Calculate IQR again for this column
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - iqr_multiplier * IQR
+            upper_bound = Q3 + iqr_multiplier * IQR
+            
+            # Create mask for this column's outliers
+            col_mask = (df[col] < lower_bound) | (df[col] > upper_bound)
+            
+            if fill_method == "mean":
+                fill_value = df[col].mean()
+                df.loc[col_mask, col] = fill_value
+            elif fill_method == "median":
+                fill_value = df[col].median()
+                df.loc[col_mask, col] = fill_value
+            elif fill_method == "mode":
+                fill_value = df[col].mode()[0]
+                df.loc[col_mask, col] = fill_value
+            elif fill_method in ["ffill", "bfill"]:
+                # For forward/backward fill, we need to mark outliers as NaN first
+                df.loc[col_mask, col] = np.nan
+                df[col] = df[col].fillna(method=fill_method)
+            else:
+                # Default to median if method not recognized
+                fill_value = df[col].median()
+                df.loc[col_mask, col] = fill_value
+    
+    # Save the cleaned dataset to session state
+    st.session_state.dataset = df
+    
+    # Save the cleaned data to a file
     try:
-        import debugpy; debugpy.breakpoint()
-        # Get the dataset
-        df = st.session_state.dataset.copy()
-        original_shape = df.shape
-        
-        # Get all numeric columns - use a broader approach to detect numeric columns
-        numeric_cols = []
-        
-        # First try pandas' built-in detection
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        
-        if not numeric_cols:
-            return "Error: The dataset has no numeric columns to remove outliers from. Please ensure your dataset contains numeric data."
-        
-        # Print available columns for debugging
-        st.info(f"Available columns in dataset: {', '.join(df.columns.tolist())}")
-        st.info(f"Detected numeric columns: {', '.join(numeric_cols)}")
-        
-        # Determine which columns to process
-        valid_columns = []
-        
-        # Default to all numeric columns
-        if not numeric_cols:
-            return "Error: No numeric columns found in the dataset. Outlier removal requires numeric data."
-            
-        # Handle the 'all' case or empty input - use all numeric columns
-        if not columns or (isinstance(columns, str) and columns.lower() == "all"):
-            valid_columns = numeric_cols
-            st.info(f"Processing all numeric columns: {', '.join(valid_columns)}")
-            
-        # Handle LangChain JSON input format
-        elif isinstance(columns, str) and '{"columns":' in columns:
-            import re
-            
-            # Extract the columns value using regex
-            match = re.search(r'"columns"\s*:\s*"([^"]+)"', columns)
-            
-            if match:
-                columns_value = match.group(1)
-                
-                # Process the extracted value
-                if columns_value.lower() == "all":
-                    valid_columns = numeric_cols
-                else:
-                    # Split by comma if it's a comma-separated string
-                    user_columns = [col.strip() for col in columns_value.split(',')]
-                    valid_columns = [col for col in user_columns if col in numeric_cols]
-            else:
-                # Fallback to all numeric columns
-                valid_columns = numeric_cols
-                
-        # Handle direct column specification
-        else:
-            # Parse the user's column input
-            user_columns = []
-            if isinstance(columns, str):
-                if ',' in columns:
-                    user_columns = [col.strip() for col in columns.split(',')]
-                else:
-                    user_columns = [columns.strip()]
-            elif isinstance(columns, list):
-                user_columns = columns
-            else:
-                user_columns = [str(columns)]
-                
-            # Filter to only include numeric columns
-            valid_columns = [col for col in user_columns if col in numeric_cols]
-            
-        # Show which columns will be processed
-        if valid_columns:
-            st.info(f"Processing columns: {', '.join(valid_columns)}")
-        else:
-            return "Error: No valid numeric columns specified for outlier removal. Please check column names."
-        
-        # Track outliers per column
-        outliers_info = {}
-        
-        # Process each column
-        for col in valid_columns:
-            # Calculate Q1, Q3, and IQR
-            q1 = df[col].quantile(0.25)
-            q3 = df[col].quantile(0.75)
-            iqr = q3 - q1
-            
-            # Define outlier boundaries
-            lower_bound = q1 - (iqr_multiplier * iqr)
-            upper_bound = q3 + (iqr_multiplier * iqr)
-            
-            # Identify outliers
-            outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)][col]
-            outliers_count = len(outliers)
-            
-            # Store outlier information
-            outliers_info[col] = {
-                'count': outliers_count,
-                'percentage': (outliers_count / len(df)) * 100,
-                'lower_bound': lower_bound,
-                'upper_bound': upper_bound,
-                'min_value': df[col].min(),
-                'max_value': df[col].max()
-            }
-            
-            # Handle outliers
-            if drop_outliers:
-                # Drop rows with outliers
-                df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
-            elif fill_method:
-                # Replace outliers with specified method
-                mask = (df[col] < lower_bound) | (df[col] > upper_bound)
-                
-                if fill_method == 'mean':
-                    fill_value = df[col].mean()
-                elif fill_method == 'median':
-                    fill_value = df[col].median()
-                elif fill_method == 'mode':
-                    fill_value = df[col].mode()[0]
-                elif fill_method == 'nearest':
-                    # Replace lower outliers with lower bound, upper outliers with upper bound
-                    df.loc[df[col] < lower_bound, col] = lower_bound
-                    df.loc[df[col] > upper_bound, col] = upper_bound
-                    continue
-                else:
-                    return f"Error: Invalid fill method '{fill_method}'. Use 'mean', 'median', 'mode', or 'nearest'."
-                
-                df.loc[mask, col] = fill_value
-        
-        # Create directory for saving processed datasets if it doesn't exist
-        data_dir = os.path.join(os.getcwd(), 'data', 'processed')
-        os.makedirs(data_dir, exist_ok=True)
-        
-        # Generate a filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"cleaned_data_{timestamp}.csv"
-        filepath = os.path.join(data_dir, filename)
-        
-        # Save the processed data to disk
-        df.to_csv(filepath, index=False)
-        
-        # Store the filepath in session state for future reference
-        st.session_state.processed_data_path = filepath
-        
-        # Handle potential pyarrow serialization issues by converting object columns to string
-        # This prevents errors when Streamlit tries to convert DataFrame to Arrow table
-        object_columns = df.select_dtypes(include=['object']).columns
-        for col in object_columns:
-            df[col] = df[col].astype(str)
-            
-        # Update the dataset in session state
-        st.session_state.dataset = df
-        
-        # Generate report
-        report = "## Outlier Removal Report\n\n"
-        report += f"**Method:** IQR (Interquartile Range) with multiplier {iqr_multiplier}\n\n"
-        report += f"**Action:** {'Dropped outliers' if drop_outliers else f'Replaced outliers using {fill_method}'}\n\n"
-        report += f"**Original dataset shape:** {original_shape[0]} rows × {original_shape[1]} columns\n"
-        report += f"**New dataset shape:** {df.shape[0]} rows × {df.shape[1]} columns\n"
-        report += f"**Rows removed:** {original_shape[0] - df.shape[0]} ({((original_shape[0] - df.shape[0]) / original_shape[0]) * 100:.2f}%)\n\n"
-        report += f"**Data saved to:** {filepath}\n\n"
-        
-        report += "**Outliers per column:**\n\n"
-        for col, info in outliers_info.items():
-            report += f"- **{col}**: {info['count']} outliers ({info['percentage']:.2f}%)\n"
-            report += f"  - Range: [{info['min_value']:.2f}, {info['max_value']:.2f}]\n"
-            report += f"  - Outlier boundaries: [{info['lower_bound']:.2f}, {info['upper_bound']:.2f}]\n"
-        
-        return report
-    
+        os.makedirs("data/processed", exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"data/processed/cleaned_data_{timestamp}.csv"
+        df.to_csv(filename, index=False)
     except Exception as e:
-        import traceback
-        st.error(f"Error removing outliers: {str(e)}")
-        st.error(traceback.format_exc())
-        return f"Error removing outliers: {str(e)}"
+        filename = "Could not save file"
+    
+    # Generate report
+    report = "## Outlier Removal Report\n\n"
+    report += f"**Method:** IQR (Interquartile Range) with multiplier {iqr_multiplier}\n\n"
+    action_taken = 'Dropped outliers' if drop_outliers else f'Replaced outliers using {fill_method}'
+    report += f"**Action:** {action_taken}\n\n"
+    # Add note about excluded columns
+    excluded_in_dataset = [col for col in excluded_columns if col in df.columns]
+    if excluded_in_dataset:
+        report += f"**Note:** Excluded columns from outlier detection: {', '.join(excluded_in_dataset)}\n\n"
+    report += f"**Original dataset shape:** {original_shape[0]} rows × {original_shape[1]} columns\n"
+    report += f"**New dataset shape:** {df.shape[0]} rows × {df.shape[1]} columns\n"
+    report += f"**Rows removed:** {original_shape[0] - df.shape[0]} ({((original_shape[0] - df.shape[0]) / original_shape[0]) * 100:.2f}%)\n\n"
+    report += f"**Data saved to:** {filename}\n\n"
+    
+    # Add outlier information per column
+    report += "**Outliers per column:**\n\n"
+    for col, info in outliers_info.items():
+        report += f"- **{col}**: {info['count']} outliers ({info['percentage']:.2f}%)\n"
+        report += f"  - Range: [{info['range'][0]}, {info['range'][1]}]\n"
+        report += f"  - Outlier boundaries: [{info['boundaries'][0]}, {info['boundaries'][1]}]\n\n"
+    
+    return report

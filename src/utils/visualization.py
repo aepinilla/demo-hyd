@@ -646,6 +646,12 @@ def create_sensor_pivot_table(df: pd.DataFrame, variables: list) -> pd.DataFrame
     """
     import streamlit as st
     
+    # Special case: if 'value' is requested directly, use all value types
+    if len(variables) == 1 and variables[0].lower() == 'value':
+        # Use all available value types instead
+        variables = df['value_type'].unique().tolist()
+        st.info(f"Using all available sensor value types: {', '.join(variables)}")
+    
     # Filter to only include the requested variables
     filtered_df = df[df['value_type'].isin(variables)].copy()
     

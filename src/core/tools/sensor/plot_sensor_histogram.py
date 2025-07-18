@@ -90,12 +90,24 @@ def plot_sensor_histogram(variables_to_plot: str = "P1,P2", bins: int = 30, titl
                 print(f"JSON parse error: {e}")
                 continue
     
-    # Force a refresh of the data to avoid caching issues
-    df, requested_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
-    
-    if error_msg:
-        st.warning(error_msg)
-        return error_msg
+    # Special case: if 'value' is requested directly, use all available value types
+    if variables_to_plot.lower() == 'value':
+        # Get the dataset from session state
+        if 'dataset' in st.session_state and st.session_state.dataset is not None:
+            df = st.session_state.dataset
+            # Use all available value types
+            requested_vars = df['value_type'].unique().tolist()
+            st.info(f"Using all available sensor value types: {', '.join(requested_vars)}")
+            error_msg = None
+        else:
+            return "Error: No dataset available in session state. Please fetch sensor data first."
+    else:
+        # Force a refresh of the data to avoid caching issues
+        df, requested_vars, error_msg = prepare_sensor_data(variables_to_plot, force_refresh=True)
+        
+        if error_msg:
+            st.warning(error_msg)
+            return error_msg
     
     # Filter the dataframe to only include the requested variables
     filtered_df = df[df['value_type'].isin(requested_vars)].copy()

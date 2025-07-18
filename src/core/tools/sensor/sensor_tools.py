@@ -6,7 +6,9 @@ from .prepare_sensor_data_for_visualization import prepare_sensor_data_for_visua
 from .plot_sensor_histogram import plot_sensor_histogram
 from .plot_sensor_scatter import plot_sensor_scatter
 from .plot_sensor_heatmap import plot_sensor_heatmap
+from .sync_sensor_data import sync_sensor_data
 from src.utils.sensor_api import fetch_latest_data, get_sensor_types
+from src.utils.remove_outliers import remove_outliers_iqr
 
 def get_sensor_tools() -> List[StructuredTool]:
     """
@@ -58,6 +60,20 @@ def get_sensor_tools() -> List[StructuredTool]:
             func=get_sensor_types,
             name="get_available_sensor_types",
             description="Get a list of available sensor types in the sensor.community network.",
+            return_direct=False
+        ),
+        # Data synchronization tool to ensure proper data flow between components
+        StructuredTool.from_function(
+            func=sync_sensor_data,
+            name="sync_sensor_data",
+            description="Synchronize sensor data between different session state variables. Use this after fetch_latest_sensor_data and before using remove_outliers_iqr.",
+            return_direct=False
+        ),
+        # Outlier removal tool for sensor data
+        StructuredTool.from_function(
+            func=remove_outliers_iqr,
+            name="remove_outliers_from_sensor_data",
+            description="Remove outliers from sensor data using the IQR method. Must use sync_sensor_data before calling this function.",
             return_direct=False
         ),
     ]
