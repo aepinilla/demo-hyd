@@ -24,6 +24,9 @@ from src.utils.visualization import (
     # plot_line
 )
 
+# Import outlier removal utility
+from src.utils.remove_outliers import remove_outliers_iqr
+
 # Core visualization input schemas
 class LoadDataInput(BaseModel):
     """Input schema for loading a dataset."""
@@ -50,6 +53,13 @@ class PlotHeatmapInput(BaseModel):
 class GetColumnTypesInput(BaseModel):
     """Input schema for getting column types."""
     columns: Optional[str] = Field(None, description="Optional comma-separated list of columns to check. If not provided, checks all columns.")
+
+class RemoveOutliersIQRInput(BaseModel):
+    """Input schema for removing outliers using IQR method."""
+    columns: Union[List[str], str] = Field("all", description="List of columns or 'all' for all numeric columns")
+    iqr_multiplier: float = Field(1.5, description="Multiplier for IQR to determine outlier threshold (default: 1.5)")
+    drop_outliers: bool = Field(True, description="Whether to drop outliers (True) or replace them (False)")
+    fill_method: Optional[str] = Field(None, description="Method to fill outliers if drop_outliers is False. Options: 'mean', 'median', 'mode', 'nearest', None")
 
 # Sensor data input schemas
 class FetchLatestDataInput(BaseModel):
@@ -111,18 +121,18 @@ def get_standard_tools() -> List[StructuredTool]:
             args_schema=PlotScatterInput,
             return_direct=False
         ),
-        # StructuredTool.from_function(
-        #     func=plot_line,
-        #     name="plot_line",
-        #     description="Create a line plot to show trends in data over a continuous variable.",
-        #     args_schema=PlotLineInput,
-        #     return_direct=False
-        # ),
         StructuredTool.from_function(
             func=plot_heatmap,
             name="plot_heatmap",
             description="Create a correlation heatmap to visualize relationships between numeric variables.",
             args_schema=PlotHeatmapInput,
+            return_direct=False
+        ),
+        StructuredTool.from_function(
+            func=remove_outliers_iqr,
+            name="remove_outliers",
+            description="Remove outliers from the dataset using the Interquartile Range (IQR) method. Useful for cleaning sensor data with extreme values.",
+            args_schema=RemoveOutliersIQRInput,
             return_direct=False
         )
     ]

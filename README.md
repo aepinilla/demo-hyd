@@ -105,3 +105,9 @@ docker run -it --rm -p 8080:8080 hyd2025-demo
 ```
 
 This will start the Streamlit app in a Docker container, and you can access it at `http://localhost:8080`.
+
+## Stop Docker Container
+
+```bash
+docker stop hyd2025-demo
+```
