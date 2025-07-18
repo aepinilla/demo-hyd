@@ -37,6 +37,12 @@ def prepare_sensor_data_for_visualization() -> str:
             except Exception as e:
                 st.warning(f"Error converting timestamp column: {str(e)}")
         
+        # Rename latitude and longitude columns to lat and lon for compatibility with plot_sensor_map
+        if 'latitude' in df.columns and 'lat' not in df.columns:
+            df = df.rename(columns={'latitude': 'lat'})
+        if 'longitude' in df.columns and 'lon' not in df.columns:
+            df = df.rename(columns={'longitude': 'lon'})
+            
         # Store the data in both session state variables for consistency
         # This ensures both sensor-specific and standard visualization tools use the same data
         st.session_state.latest_data = df

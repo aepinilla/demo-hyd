@@ -119,15 +119,9 @@ with col2:
         map_examples = [
             "Create an interactive map showing P1 (PM10) pollution levels across sensor locations",
             "Show a map visualization of P2 (PM2.5) concentrations with color gradient",
-            "Display sensor locations on a map with the highest pollution readings highlighted"
         ]
         
-        st.markdown("### Time Series Analysis")
-        time_examples = [
-            "Plot an interactive time series of P1 and P2 values with trend lines",
-            "Create a time series visualization with 5-point moving average for particulate matter",
-            "Show a comprehensive dashboard of sensor data with maps and time series plots"
-        ]
+        # Time Series Analysis section removed as requested
         
         for i, example in enumerate(sensor_examples):
             if st.button(example, key=f"example_general_{i}"):
@@ -141,11 +135,7 @@ with col2:
                 st.session_state["user_input"] = example
                 st.rerun()
                 
-        for i, example in enumerate(time_examples):
-            if st.button(example, key=f"example_time_{i}"):
-                # Store the example query in session state and force rerun
-                st.session_state["user_input"] = example
-                st.rerun()
+        # Time Series example buttons removed as requested
 
     with data_tab:
         # Dataset examples

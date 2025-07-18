@@ -9,7 +9,7 @@ from .plot_sensor_heatmap import plot_sensor_heatmap
 from .sync_sensor_data import sync_sensor_data
 from src.utils.sensor_api import fetch_latest_data, get_sensor_types
 from src.utils.remove_outliers import remove_outliers_iqr
-from src.utils.visualization import plot_sensor_map, plot_time_series, create_sensor_dashboard
+from src.utils.visualization import plot_sensor_map
 
 def get_sensor_tools() -> List[StructuredTool]:
     """
@@ -77,23 +77,11 @@ def get_sensor_tools() -> List[StructuredTool]:
             description="Remove outliers from sensor data using the IQR method. Must use sync_sensor_data before calling this function.",
             return_direct=False
         ),
-        # Plotly visualization tools for interactive maps and time series
+        # Plotly visualization tool for interactive maps
         StructuredTool.from_function(
             func=plot_sensor_map,
             name="plot_sensor_map",
             description="Create an interactive map visualization of sensor locations with color and size based on pollution values (P1, P2). Use this to show geographic distribution of sensor readings.",
-            return_direct=False
-        ),
-        StructuredTool.from_function(
-            func=plot_time_series,
-            name="plot_time_series",
-            description="Create an interactive time series visualization of sensor readings over time with options for trend lines and moving averages.",
-            return_direct=False
-        ),
-        StructuredTool.from_function(
-            func=create_sensor_dashboard,
-            name="create_sensor_dashboard",
-            description="Create a comprehensive dashboard with interactive map, time series plots, and statistics for sensor data analysis.",
             return_direct=False
         ),
     ]

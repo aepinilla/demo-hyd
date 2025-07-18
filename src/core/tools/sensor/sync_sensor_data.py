@@ -32,6 +32,17 @@ def sync_sensor_data() -> str:
     # Copy the data to ensure both references have the same data
     st.session_state.dataset = st.session_state.latest_data.copy()
     
+    # Rename latitude and longitude columns to lat and lon for compatibility with plot_sensor_map
+    if 'latitude' in st.session_state.dataset.columns and 'lat' not in st.session_state.dataset.columns:
+        st.session_state.dataset = st.session_state.dataset.rename(columns={'latitude': 'lat'})
+        # Also update the original data
+        st.session_state.latest_data = st.session_state.latest_data.rename(columns={'latitude': 'lat'})
+    
+    if 'longitude' in st.session_state.dataset.columns and 'lon' not in st.session_state.dataset.columns:
+        st.session_state.dataset = st.session_state.dataset.rename(columns={'longitude': 'lon'})
+        # Also update the original data
+        st.session_state.latest_data = st.session_state.latest_data.rename(columns={'longitude': 'lon'})
+    
     # Log information about the synchronized data
     rows = st.session_state.dataset.shape[0]
     cols = st.session_state.dataset.shape[1]
