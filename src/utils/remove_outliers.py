@@ -120,72 +120,68 @@ def remove_outliers_iqr(
         # First try pandas' built-in detection
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
         
-        # # If that fails, try to convert columns to numeric and see which ones succeed
-        # if not numeric_cols:
-        #     st.warning("No numeric columns detected automatically. Attempting to convert columns to numeric...")
-        #     for col in df.columns:
-        #         try:
-        #             # Try to convert to numeric, coercing errors to NaN
-        #             pd.to_numeric(df[col], errors='coerce')
-        #             # If we get here without error and there are non-NaN values, it's numeric
-        #             if not pd.to_numeric(df[col], errors='coerce').isna().all():
-        #                 numeric_cols.append(col)
-        #         except:
-        #             continue
-        
         if not numeric_cols:
             return "Error: The dataset has no numeric columns to remove outliers from. Please ensure your dataset contains numeric data."
-        
-        # # Simple parameter handling
-        # if isinstance(columns, str):
-        #     # Handle 'all' case - use all numeric columns
-        #     if columns.lower() == "all":
-        #         columns = numeric_cols
-        #     elif ',' in columns:
-        #         # Split by comma if it's a comma-separated string
-        #         columns = [col.strip() for col in columns.split(',')]
-        #     else:
-        #         # Single column name
-        #         columns = [columns.strip()]
-        
-        # Ensure columns is a list
-        if not isinstance(columns, list):
-            columns = [columns]
         
         # Print available columns for debugging
         st.info(f"Available columns in dataset: {', '.join(df.columns.tolist())}")
         st.info(f"Detected numeric columns: {', '.join(numeric_cols)}")
         
-        # Simple direct column validation
+        # Determine which columns to process
         valid_columns = []
-        invalid_columns = []
         
-        for col in columns:
-            if col in df.columns:
-                if col in numeric_cols:
-                    valid_columns.append(col)
-                    st.info(f"Column '{col}' will be processed.")
+        # Default to all numeric columns
+        if not numeric_cols:
+            return "Error: No numeric columns found in the dataset. Outlier removal requires numeric data."
+            
+        # Handle the 'all' case or empty input - use all numeric columns
+        if not columns or (isinstance(columns, str) and columns.lower() == "all"):
+            valid_columns = numeric_cols
+            st.info(f"Processing all numeric columns: {', '.join(valid_columns)}")
+            
+        # Handle LangChain JSON input format
+        elif isinstance(columns, str) and '{"columns":' in columns:
+            import re
+            
+            # Extract the columns value using regex
+            match = re.search(r'"columns"\s*:\s*"([^"]+)"', columns)
+            
+            if match:
+                columns_value = match.group(1)
+                
+                # Process the extracted value
+                if columns_value.lower() == "all":
+                    valid_columns = numeric_cols
                 else:
-                    # Try to convert to numeric
-                    try:
-                        numeric_series = pd.to_numeric(df[col], errors='coerce')
-                        if not numeric_series.isna().all():
-                            df[col] = numeric_series
-                            valid_columns.append(col)
-                            st.info(f"Successfully converted column '{col}' to numeric type.")
-                        else:
-                            invalid_columns.append(f"{col} (not convertible to numeric)")
-                    except Exception as e:
-                        invalid_columns.append(f"{col} (error: {str(e)})")
+                    # Split by comma if it's a comma-separated string
+                    user_columns = [col.strip() for col in columns_value.split(',')]
+                    valid_columns = [col for col in user_columns if col in numeric_cols]
             else:
-                invalid_columns.append(f"{col} (not found)")
-
-        
-        if invalid_columns:
-            st.warning(f"Columns not processed: {', '.join(invalid_columns)}")
-        
-        if not valid_columns:
-            return "Error: No valid numeric columns specified for outlier removal. Please check column names and ensure they contain numeric data."
+                # Fallback to all numeric columns
+                valid_columns = numeric_cols
+                
+        # Handle direct column specification
+        else:
+            # Parse the user's column input
+            user_columns = []
+            if isinstance(columns, str):
+                if ',' in columns:
+                    user_columns = [col.strip() for col in columns.split(',')]
+                else:
+                    user_columns = [columns.strip()]
+            elif isinstance(columns, list):
+                user_columns = columns
+            else:
+                user_columns = [str(columns)]
+                
+            # Filter to only include numeric columns
+            valid_columns = [col for col in user_columns if col in numeric_cols]
+            
+        # Show which columns will be processed
+        if valid_columns:
+            st.info(f"Processing columns: {', '.join(valid_columns)}")
+        else:
+            return "Error: No valid numeric columns specified for outlier removal. Please check column names."
         
         # Track outliers per column
         outliers_info = {}
@@ -254,6 +250,12 @@ def remove_outliers_iqr(
         # Store the filepath in session state for future reference
         st.session_state.processed_data_path = filepath
         
+        # Handle potential pyarrow serialization issues by converting object columns to string
+        # This prevents errors when Streamlit tries to convert DataFrame to Arrow table
+        object_columns = df.select_dtypes(include=['object']).columns
+        for col in object_columns:
+            df[col] = df[col].astype(str)
+            
         # Update the dataset in session state
         st.session_state.dataset = df
         
