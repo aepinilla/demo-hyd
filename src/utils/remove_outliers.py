@@ -10,7 +10,60 @@ import numpy as np
 import streamlit as st
 import os
 from datetime import datetime
+import re
 from typing import List, Optional, Union, Tuple
+
+
+def clean_column_name(column_name: str) -> str:
+    """
+    Clean column name by trimming whitespace and normalizing it.
+    
+    Args:
+        column_name (str): The column name to clean
+        
+    Returns:
+        str: Cleaned column name
+    """
+    if not isinstance(column_name, str):
+        return str(column_name)
+    
+    # Trim whitespace
+    cleaned = column_name.strip()
+    
+    return cleaned
+
+def find_matching_column(column_name: str, available_columns: List[str]) -> str:
+    """
+    Find a matching column name in the available columns list.
+    Handles cases with extra spaces or slight variations.
+    
+    Args:
+        column_name (str): The column name to match
+        available_columns (List[str]): List of available column names
+        
+    Returns:
+        str: Matched column name or None if no match found
+    """
+    # Clean the input column name
+    clean_name = clean_column_name(column_name)
+    
+    # Direct match
+    if clean_name in available_columns:
+        return clean_name
+    
+    # Try with space variations
+    for col in available_columns:
+        # Compare without spaces
+        if clean_name.replace(' ', '') == col.replace(' ', ''):
+            return col
+    
+    # Try with case insensitive match
+    for col in available_columns:
+        if clean_name.lower() == col.lower():
+            return col
+    
+    # No match found
+    return None
 
 
 def remove_outliers_iqr(
@@ -69,7 +122,10 @@ def remove_outliers_iqr(
                 columns = numeric_cols
             else:
                 # Split by comma and clean each column name
-                columns = [col.strip() for col in columns.split(',')]
+                columns = [clean_column_name(col) for col in columns.split(',')]
+        else:
+            # Clean each column name in the list
+            columns = [clean_column_name(col) for col in columns]
         
         # Validate columns
         valid_columns = []
@@ -80,25 +136,41 @@ def remove_outliers_iqr(
         st.info(f"Detected numeric columns: {', '.join(numeric_cols)}")
         
         for col in columns:
-            if col in numeric_cols:
-                valid_columns.append(col)
-            elif col in df.columns:
+            # Try to find a matching column using our utility function
+            matched_col = find_matching_column(col, df.columns.tolist())
+            
+            if matched_col and matched_col in numeric_cols:
+                valid_columns.append(matched_col)
+                st.info(f"Column '{col}' matched to '{matched_col}' and will be processed.")
+            elif matched_col:
                 # Column exists but is not numeric - try to convert it
                 try:
                     # Try to convert to numeric, coercing errors to NaN
-                    numeric_series = pd.to_numeric(df[col], errors='coerce')
+                    numeric_series = pd.to_numeric(df[matched_col], errors='coerce')
                     # If there are valid numeric values, use this column
                     if not numeric_series.isna().all():
                         # Replace the column with the numeric version
-                        df[col] = numeric_series
-                        valid_columns.append(col)
-                        st.info(f"Successfully converted column '{col}' to numeric type.")
+                        df[matched_col] = numeric_series
+                        valid_columns.append(matched_col)
+                        st.info(f"Successfully converted column '{matched_col}' to numeric type.")
                     else:
                         invalid_columns.append(f"{col} (not convertible to numeric)")
                 except Exception as e:
                     invalid_columns.append(f"{col} (conversion error: {str(e)})")
             else:
-                invalid_columns.append(f"{col} (not found)")
+                # Try one more time with fuzzy matching against numeric columns
+                best_match = None
+                for numeric_col in numeric_cols:
+                    if col.lower() in numeric_col.lower() or numeric_col.lower() in col.lower():
+                        best_match = numeric_col
+                        break
+                
+                if best_match:
+                    valid_columns.append(best_match)
+                    st.info(f"Column '{col}' fuzzy matched to '{best_match}' and will be processed.")
+                else:
+                    invalid_columns.append(f"{col} (not found)")
+
         
         if invalid_columns:
             st.warning(f"Columns not processed: {', '.join(invalid_columns)}")

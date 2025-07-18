@@ -7,11 +7,16 @@ with Seaborn and displaying them in Streamlit.
 
 from typing import Any, Dict, List, Optional
 from matplotlib.ticker import MaxNLocator
-
-import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
+from typing import List, Dict, Any, Optional, Union
+import io
+import base64
+from datetime import datetime, timedelta
+from src.utils.remove_outliers import clean_column_name, find_matching_column
 
 # Store the loaded dataset in session state
 if "dataset" not in st.session_state:
@@ -124,32 +129,56 @@ def plot_histogram(column: Optional[str] = None, bins: int = 10, title: str = "H
             # Clean the column name
             column = clean_column_name(column)
         
-        # Check if column exists
-        if column not in df.columns:
+        # Try to find a matching column using our utility function
+        matched_col = find_matching_column(column, df.columns.tolist())
+        
+        if matched_col is None:
             st.warning(f"Column '{column}' not found in dataset. Auto-selecting first numeric column.")
             column = numeric_cols[0]
+        else:
+            column = matched_col
+            if matched_col != column:  # If there was a match but not exact
+                st.info(f"Column '{column}' matched to '{matched_col}' and will be used for histogram.")
         
         # Check if column is numeric
         if column not in numeric_cols:
-            st.warning(f"Column '{column}' is not numeric. Auto-selecting first numeric column for histogram.")
-            column = numeric_cols[0]
+            # Try to convert to numeric if possible
+            try:
+                numeric_series = pd.to_numeric(df[column], errors='coerce')
+                if not numeric_series.isna().all():
+                    # Replace the column with the numeric version
+                    df[column] = numeric_series
+                    st.info(f"Successfully converted column '{column}' to numeric type for histogram.")
+                else:
+                    st.warning(f"Column '{column}' is not numeric and couldn't be converted. Auto-selecting first numeric column.")
+                    column = numeric_cols[0]
+            except Exception as e:
+                st.warning(f"Column '{column}' is not numeric. Auto-selecting first numeric column. Error: {str(e)}")
+                column = numeric_cols[0]
         
-        # Create a new figure
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Create the histogram
-        sns.histplot(data=df, x=column, bins=bins, kde=True, ax=ax)
-        
-        # Set title and labels
-        ax.set_title(title)
-        ax.set_xlabel(column)
-        ax.set_ylabel("Count")
-        
-        # Display the plot in Streamlit
-        st.pyplot(fig)
-        
-        # Add some statistics
-        stats = df[column].describe()
+        try:
+            # Create a new figure
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Create the histogram
+            sns.histplot(data=df, x=column, bins=bins, kde=True, ax=ax)
+            
+            # Set title and labels
+            ax.set_title(title)
+            ax.set_xlabel(column)
+            ax.set_ylabel("Count")
+            
+            # Display the plot in Streamlit
+            st.pyplot(fig)
+            
+            # Add some statistics
+            stats = df[column].describe()
+            
+        except Exception as e:
+            st.error(f"Error creating histogram: {str(e)}")
+            import traceback
+            st.error(f"\nTraceback (most recent call last): {traceback.format_exc()}")
+            return f"Error creating histogram: {str(e)}"
         
         return f"""
 ## Histogram for '{column}'
@@ -386,17 +415,34 @@ def get_column_types(columns: str | None = None) -> str:
         else:
             col_list = df.columns.tolist()
         
-        # Validate columns - ensure they exist in dataset
-        valid_cols = [col for col in col_list if col in df.columns]
+        # Validate columns - ensure they exist in dataset using our matching utility
+        valid_cols = []
+        invalid_cols = []
+        
+        # Print available columns for reference
+        st.info(f"Available columns in dataset: {', '.join(df.columns.tolist())}")
+        
+        for col in col_list:
+            # Try to find a matching column using our utility function
+            matched_col = find_matching_column(col, df.columns.tolist())
+            
+            if matched_col:
+                valid_cols.append(matched_col)
+                if matched_col != col:  # If there was a match but not exact
+                    st.info(f"Column '{col}' matched to '{matched_col}' and will be analyzed.")
+            else:
+                invalid_cols.append(col)
         
         # If no valid columns, show an error
         if not valid_cols:
             return f"Error: None of the specified columns were found in the dataset. Available columns: {', '.join(df.columns)}"
         
         # If some columns were invalid, show a warning
-        invalid_cols = [col for col in col_list if col not in df.columns]
         if invalid_cols:
             st.warning(f"Some columns were not found: {', '.join(invalid_cols)}")
+            
+        # Remove duplicates while preserving order
+        valid_cols = list(dict.fromkeys(valid_cols))
         
         # Build information about each column
         info = ["## Column Information\n"]
