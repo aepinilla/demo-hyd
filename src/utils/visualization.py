@@ -612,6 +612,13 @@ def prepare_sensor_data(variables_to_plot: str = "all", force_refresh: bool = Fa
             
             # Use the exact variable names from the data
             available_vars = df['value_type'].unique().tolist()
+            
+            # Add special handling for location columns that aren't in value_type
+            location_columns = ['latitude', 'longitude', 'lat', 'lon', 'lng', 'gps_lat', 'gps_lon']
+            for col in location_columns:
+                if col in df.columns:
+                    available_vars.append(col)
+            
             mapped_vars = []
             
             for var in requested_vars:
