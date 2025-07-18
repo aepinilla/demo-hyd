@@ -8,6 +8,8 @@ using various statistical methods.
 import pandas as pd
 import numpy as np
 import streamlit as st
+import os
+from datetime import datetime
 from typing import List, Optional, Union, Tuple
 
 
@@ -38,11 +40,27 @@ def remove_outliers_iqr(
         df = st.session_state.dataset.copy()
         original_shape = df.shape
         
-        # Get all numeric columns
+        # Get all numeric columns - use a broader approach to detect numeric columns
+        numeric_cols = []
+        
+        # First try pandas' built-in detection
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
         
+        # If that fails, try to convert columns to numeric and see which ones succeed
         if not numeric_cols:
-            return "Error: The dataset has no numeric columns to remove outliers from."
+            st.warning("No numeric columns detected automatically. Attempting to convert columns to numeric...")
+            for col in df.columns:
+                try:
+                    # Try to convert to numeric, coercing errors to NaN
+                    pd.to_numeric(df[col], errors='coerce')
+                    # If we get here without error and there are non-NaN values, it's numeric
+                    if not pd.to_numeric(df[col], errors='coerce').isna().all():
+                        numeric_cols.append(col)
+                except:
+                    continue
+        
+        if not numeric_cols:
+            return "Error: The dataset has no numeric columns to remove outliers from. Please ensure your dataset contains numeric data."
         
         # Convert input to list of columns
         if isinstance(columns, str):
@@ -57,17 +75,36 @@ def remove_outliers_iqr(
         valid_columns = []
         invalid_columns = []
         
+        # Print available columns for debugging
+        st.info(f"Available columns in dataset: {', '.join(df.columns.tolist())}")
+        st.info(f"Detected numeric columns: {', '.join(numeric_cols)}")
+        
         for col in columns:
             if col in numeric_cols:
                 valid_columns.append(col)
+            elif col in df.columns:
+                # Column exists but is not numeric - try to convert it
+                try:
+                    # Try to convert to numeric, coercing errors to NaN
+                    numeric_series = pd.to_numeric(df[col], errors='coerce')
+                    # If there are valid numeric values, use this column
+                    if not numeric_series.isna().all():
+                        # Replace the column with the numeric version
+                        df[col] = numeric_series
+                        valid_columns.append(col)
+                        st.info(f"Successfully converted column '{col}' to numeric type.")
+                    else:
+                        invalid_columns.append(f"{col} (not convertible to numeric)")
+                except Exception as e:
+                    invalid_columns.append(f"{col} (conversion error: {str(e)})")
             else:
-                invalid_columns.append(col)
+                invalid_columns.append(f"{col} (not found)")
         
         if invalid_columns:
-            st.warning(f"Columns not found or not numeric: {', '.join(invalid_columns)}")
+            st.warning(f"Columns not processed: {', '.join(invalid_columns)}")
         
         if not valid_columns:
-            return "Error: No valid numeric columns specified for outlier removal."
+            return "Error: No valid numeric columns specified for outlier removal. Please check column names and ensure they contain numeric data."
         
         # Track outliers per column
         outliers_info = {}
@@ -121,6 +158,21 @@ def remove_outliers_iqr(
                 
                 df.loc[mask, col] = fill_value
         
+        # Create directory for saving processed datasets if it doesn't exist
+        data_dir = os.path.join(os.getcwd(), 'data', 'processed')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Generate a filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"cleaned_data_{timestamp}.csv"
+        filepath = os.path.join(data_dir, filename)
+        
+        # Save the processed data to disk
+        df.to_csv(filepath, index=False)
+        
+        # Store the filepath in session state for future reference
+        st.session_state.processed_data_path = filepath
+        
         # Update the dataset in session state
         st.session_state.dataset = df
         
@@ -131,6 +183,7 @@ def remove_outliers_iqr(
         report += f"**Original dataset shape:** {original_shape[0]} rows × {original_shape[1]} columns\n"
         report += f"**New dataset shape:** {df.shape[0]} rows × {df.shape[1]} columns\n"
         report += f"**Rows removed:** {original_shape[0] - df.shape[0]} ({((original_shape[0] - df.shape[0]) / original_shape[0]) * 100:.2f}%)\n\n"
+        report += f"**Data saved to:** {filepath}\n\n"
         
         report += "**Outliers per column:**\n\n"
         for col, info in outliers_info.items():

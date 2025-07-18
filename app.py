@@ -21,6 +21,7 @@ from src.config.settings import USER_AVATAR, BOT_AVATAR
 from src.core.chat import initialize_chat_history, add_message_to_history, get_messages_for_llm
 from src.core.agents import create_agent_executor
 from src.core.tools.tools import get_tools_by_context
+from src.utils.auto_load import auto_load_processed_data
 # from src.ui.components import display_chat_history, create_chat_input
 
 # Set up Streamlit page config
@@ -77,6 +78,11 @@ if "messages" not in st.session_state:
 
 if "dataset" not in st.session_state:
     st.session_state.dataset = None
+    
+    # Try to automatically load the most recent processed data
+    auto_load_result = auto_load_processed_data()
+    if auto_load_result:
+        st.info(auto_load_result)
     
 # Initialize user_input in session state if not present
 if "user_input" not in st.session_state:

@@ -27,6 +27,9 @@ from src.utils.visualization import (
 # Import outlier removal utility
 from src.utils.remove_outliers import remove_outliers_iqr
 
+# Import processed data loading utility
+from src.utils.load_processed_data import load_processed_data
+
 # Core visualization input schemas
 class LoadDataInput(BaseModel):
     """Input schema for loading a dataset."""
@@ -60,6 +63,12 @@ class RemoveOutliersIQRInput(BaseModel):
     iqr_multiplier: float = Field(1.5, description="Multiplier for IQR to determine outlier threshold (default: 1.5)")
     drop_outliers: bool = Field(True, description="Whether to drop outliers (True) or replace them (False)")
     fill_method: Optional[str] = Field(None, description="Method to fill outliers if drop_outliers is False. Options: 'mean', 'median', 'mode', 'nearest', None")
+
+class LoadProcessedDataInput(BaseModel):
+    """Input schema for loading processed data from disk."""
+    filename: Optional[str] = Field(None, description="Optional specific filename to load. If not provided, loads the most recent processed file.")
+    latest: bool = Field(True, description="If True and filename is None, loads the most recent processed file. If False, lists available files.")
+
 
 # Sensor data input schemas
 class FetchLatestDataInput(BaseModel):
@@ -133,6 +142,13 @@ def get_standard_tools() -> List[StructuredTool]:
             name="remove_outliers",
             description="Remove outliers from the dataset using the Interquartile Range (IQR) method. Useful for cleaning sensor data with extreme values.",
             args_schema=RemoveOutliersIQRInput,
+            return_direct=False
+        ),
+        StructuredTool.from_function(
+            func=load_processed_data,
+            name="load_processed_data",
+            description="Load a previously processed dataset from disk. Useful for loading cleaned data after outlier removal.",
+            args_schema=LoadProcessedDataInput,
             return_direct=False
         )
     ]
