@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.36.14",
+    "debugpy>=1.8.15",
     "langchain>=0.3.17",
     "langchain-community>=0.3.23",
     "langchain-openai>=0.3.3",

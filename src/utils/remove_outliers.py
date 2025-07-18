@@ -32,18 +32,38 @@ def clean_column_name(column_name: str) -> str:
     
     return cleaned
 
-def find_matching_column(column_name: str, available_columns: List[str]) -> str:
+def find_matching_column(column_name: str, available_columns: List[str]) -> Optional[str]:
     """
     Find a matching column name in the available columns list.
     Handles cases with extra spaces or slight variations.
     
     Args:
-        column_name (str): The column name to match
+        column_name (str): The column name to find (or JSON object containing column name)
         available_columns (List[str]): List of available column names
         
     Returns:
         str: Matched column name or None if no match found
     """
+    print(f"DEBUG - Input column_name: {repr(column_name)}")
+    
+    # Handle JSON input
+    import json
+    if isinstance(column_name, str) and column_name.strip().startswith('{'):
+        try:
+            # Try to parse as JSON
+            params = json.loads(column_name)
+            # Extract column name from various possible formats
+            if isinstance(params, dict):
+                if "column" in params:
+                    column_name = params["column"]
+                elif "columns" in params and isinstance(params["columns"], list) and params["columns"]:
+                    column_name = params["columns"][0]
+                print(f"DEBUG - Extracted column_name from JSON: {repr(column_name)}")
+        except Exception as e:
+            # If JSON parsing fails, continue with original string
+            print(f"DEBUG - JSON parsing failed: {str(e)}")
+            pass
+    
     # Clean the input column name
     clean_name = clean_column_name(column_name)
     
@@ -89,6 +109,7 @@ def remove_outliers_iqr(
         return "Error: No dataset loaded. Please load a dataset first using load_dataset."
     
     try:
+        import debugpy; debugpy.breakpoint()
         # Get the dataset
         df = st.session_state.dataset.copy()
         original_shape = df.shape
@@ -99,77 +120,65 @@ def remove_outliers_iqr(
         # First try pandas' built-in detection
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
         
-        # If that fails, try to convert columns to numeric and see which ones succeed
-        if not numeric_cols:
-            st.warning("No numeric columns detected automatically. Attempting to convert columns to numeric...")
-            for col in df.columns:
-                try:
-                    # Try to convert to numeric, coercing errors to NaN
-                    pd.to_numeric(df[col], errors='coerce')
-                    # If we get here without error and there are non-NaN values, it's numeric
-                    if not pd.to_numeric(df[col], errors='coerce').isna().all():
-                        numeric_cols.append(col)
-                except:
-                    continue
+        # # If that fails, try to convert columns to numeric and see which ones succeed
+        # if not numeric_cols:
+        #     st.warning("No numeric columns detected automatically. Attempting to convert columns to numeric...")
+        #     for col in df.columns:
+        #         try:
+        #             # Try to convert to numeric, coercing errors to NaN
+        #             pd.to_numeric(df[col], errors='coerce')
+        #             # If we get here without error and there are non-NaN values, it's numeric
+        #             if not pd.to_numeric(df[col], errors='coerce').isna().all():
+        #                 numeric_cols.append(col)
+        #         except:
+        #             continue
         
         if not numeric_cols:
             return "Error: The dataset has no numeric columns to remove outliers from. Please ensure your dataset contains numeric data."
         
-        # Convert input to list of columns
-        if isinstance(columns, str):
-            # Handle 'all' case - use all numeric columns
-            if columns.lower() == "all":
-                columns = numeric_cols
-            else:
-                # Split by comma and clean each column name
-                columns = [clean_column_name(col) for col in columns.split(',')]
-        else:
-            # Clean each column name in the list
-            columns = [clean_column_name(col) for col in columns]
+        # # Simple parameter handling
+        # if isinstance(columns, str):
+        #     # Handle 'all' case - use all numeric columns
+        #     if columns.lower() == "all":
+        #         columns = numeric_cols
+        #     elif ',' in columns:
+        #         # Split by comma if it's a comma-separated string
+        #         columns = [col.strip() for col in columns.split(',')]
+        #     else:
+        #         # Single column name
+        #         columns = [columns.strip()]
         
-        # Validate columns
-        valid_columns = []
-        invalid_columns = []
+        # Ensure columns is a list
+        if not isinstance(columns, list):
+            columns = [columns]
         
         # Print available columns for debugging
         st.info(f"Available columns in dataset: {', '.join(df.columns.tolist())}")
         st.info(f"Detected numeric columns: {', '.join(numeric_cols)}")
         
+        # Simple direct column validation
+        valid_columns = []
+        invalid_columns = []
+        
         for col in columns:
-            # Try to find a matching column using our utility function
-            matched_col = find_matching_column(col, df.columns.tolist())
-            
-            if matched_col and matched_col in numeric_cols:
-                valid_columns.append(matched_col)
-                st.info(f"Column '{col}' matched to '{matched_col}' and will be processed.")
-            elif matched_col:
-                # Column exists but is not numeric - try to convert it
-                try:
-                    # Try to convert to numeric, coercing errors to NaN
-                    numeric_series = pd.to_numeric(df[matched_col], errors='coerce')
-                    # If there are valid numeric values, use this column
-                    if not numeric_series.isna().all():
-                        # Replace the column with the numeric version
-                        df[matched_col] = numeric_series
-                        valid_columns.append(matched_col)
-                        st.info(f"Successfully converted column '{matched_col}' to numeric type.")
-                    else:
-                        invalid_columns.append(f"{col} (not convertible to numeric)")
-                except Exception as e:
-                    invalid_columns.append(f"{col} (conversion error: {str(e)})")
-            else:
-                # Try one more time with fuzzy matching against numeric columns
-                best_match = None
-                for numeric_col in numeric_cols:
-                    if col.lower() in numeric_col.lower() or numeric_col.lower() in col.lower():
-                        best_match = numeric_col
-                        break
-                
-                if best_match:
-                    valid_columns.append(best_match)
-                    st.info(f"Column '{col}' fuzzy matched to '{best_match}' and will be processed.")
+            if col in df.columns:
+                if col in numeric_cols:
+                    valid_columns.append(col)
+                    st.info(f"Column '{col}' will be processed.")
                 else:
-                    invalid_columns.append(f"{col} (not found)")
+                    # Try to convert to numeric
+                    try:
+                        numeric_series = pd.to_numeric(df[col], errors='coerce')
+                        if not numeric_series.isna().all():
+                            df[col] = numeric_series
+                            valid_columns.append(col)
+                            st.info(f"Successfully converted column '{col}' to numeric type.")
+                        else:
+                            invalid_columns.append(f"{col} (not convertible to numeric)")
+                    except Exception as e:
+                        invalid_columns.append(f"{col} (error: {str(e)})")
+            else:
+                invalid_columns.append(f"{col} (not found)")
 
         
         if invalid_columns:
