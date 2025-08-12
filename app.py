@@ -18,12 +18,14 @@ from src.utils.dataframe_utils import prepare_dataframe_for_streamlit
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
 import pandas as pd
 from datetime import datetime
+import traceback
 
 from src.config.settings import USER_AVATAR, BOT_AVATAR
 from src.core.chat import initialize_chat_history, add_message_to_history, get_messages_for_llm
 from src.core.agents import create_agent_executor
 from src.core.tools.tools import get_tools_by_context
 from src.utils.auto_load import auto_load_processed_data
+from src.utils.debug_utils import setup_debug_mode, toggle_debug_mode, debug_log, display_debug_sidebar, exception_handler
 # from src.ui.components import display_chat_history, create_chat_input
 
 # Set up Streamlit page config
@@ -34,9 +36,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Initialize debug mode
+setup_debug_mode()
+
 # Load custom CSS
 with open(".streamlit/custom.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# Display debug sidebar if debug mode is enabled
+display_debug_sidebar()
+
+# Add debug toggle in sidebar
+with st.sidebar:
+    if st.button("🐞 Toggle Debug Mode"):
+        is_debug = toggle_debug_mode()
+        st.success(f"Debug mode {'enabled' if is_debug else 'disabled'}")
+        st.rerun()
 
 # Create main container
 with st.container():
@@ -49,6 +64,9 @@ with st.container():
     st.title("Hack Your District 2025")
     st.caption("Data Visualization Assistant")
     st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Log app initialization
+    debug_log("Application initialized", context={"initial_state": "ready"})
 
 # Initialize tools and agent
 # Initialize different agent executors for different data contexts
@@ -263,21 +281,27 @@ with col1:
             response_container = st.empty()
             
             try:
+                # Log user message for debugging
+                debug_log(f"Processing user message: {user_message}", context={"message_length": len(user_message)})
+                
                 # Add dataset information as context if available
                 context = ""
                 if st.session_state.dataset is not None:
                     df = st.session_state.dataset
-                    context = f"The user has loaded a dataset with {df.shape[0]} rows and {df.shape[1]} columns. "
-                    context += f"The columns are: {', '.join(df.columns.tolist())}. "
+                    context = f"The user has uploaded a dataset with {len(df)} rows and {len(df.columns)} columns. "
+                    context += f"The columns are: {', '.join(df.columns)}. "
+                    debug_log("Dataset available", context={"rows": len(df), "columns": list(df.columns)})
                 
-                # Check if we're trying to visualize without a dataset
-                # Allow sensor data visualizations even without a dataset upload
-                is_sensor_visualization = ("sensor" in user_message.lower() or 
-                                         "sds011" in user_message.lower() or
-                                         "pm10" in user_message.lower() or 
+                # Detect if this is likely a sensor visualization query
+                is_sensor_visualization = ("sensor" in user_message.lower() or
+                                         "pollution" in user_message.lower() or
+                                         "pm10" in user_message.lower() or
                                          "pm2.5" in user_message.lower() or
                                          "p1" in user_message.lower() or 
                                          "p2" in user_message.lower())
+                
+                debug_log(f"Query classification: {'sensor' if is_sensor_visualization else 'standard'}", 
+                         context={"is_sensor_visualization": is_sensor_visualization})
                 
                 if ("histogram" in user_message.lower() or 
                     "scatter" in user_message.lower() or 
@@ -290,6 +314,11 @@ with col1:
                     typing_container.empty()
                     st.error(full_response)
                     
+                    # Add to chat history
+                    st.session_state.messages = add_message_to_history(
+                        st.session_state.messages, "assistant", full_response
+                    )
+                    
                 else:
                     # Select the appropriate agent based on the query content
                     if is_sensor_visualization:
@@ -297,23 +326,33 @@ with col1:
                         st.session_state.current_agent = "sensor_agent"
                         agent_to_use = st.session_state.sensor_agent
                         st.info("Using specialized sensor data visualization tools")
+                        debug_log("Selected sensor agent", context={"agent_type": "sensor_agent"})
                     elif st.session_state.dataset is not None:
                         # Use the standard agent for CSV data queries when a dataset is loaded
                         st.session_state.current_agent = "standard_agent"
                         agent_to_use = st.session_state.standard_agent
+                        debug_log("Selected standard agent", context={"agent_type": "standard_agent"})
                     else:
                         # Use the combined agent as a fallback
                         st.session_state.current_agent = "combined_agent"
                         agent_to_use = st.session_state.combined_agent
+                        debug_log("Selected combined agent", context={"agent_type": "combined_agent"})
                     
                     # Run the selected agent with the callback handler
-                    response = agent_to_use.invoke(
-                        {
-                            "input": context + user_message,
-                            "chat_history": get_messages_for_llm()
-                        },
-                        {"callbacks": [st_callback]}
-                    )
+                    debug_log("Invoking agent", context={"input_length": len(context + user_message)})
+                    try:
+                        response = agent_to_use.invoke(
+                            {
+                                "input": context + user_message,
+                                "chat_history": get_messages_for_llm()
+                            },
+                            {"callbacks": [st_callback]}
+                        )
+                        debug_log("Agent response received", context={"response_length": len(response["output"]) if "output" in response else 0})
+                    except Exception as e:
+                        debug_log(f"Agent invocation error: {str(e)}", level="ERROR", 
+                                 context={"error_type": type(e).__name__, "traceback": traceback.format_exc()})
+                        raise
                     
                     # Clear typing indicator
                     typing_container.empty()
@@ -343,9 +382,18 @@ with col1:
                 # Clear typing indicator
                 typing_container.empty()
                 
+                # Log the error
+                debug_log(f"Error processing message: {str(e)}", level="ERROR", 
+                         context={"error_type": type(e).__name__, "traceback": traceback.format_exc()})
+                
                 # Show error message
                 error_message = f"An error occurred: {str(e)}"
                 st.error(error_message)
+                
+                # In debug mode, show more details
+                if "debug_mode" in st.session_state and st.session_state.debug_mode:
+                    with st.expander("Error Details"):
+                        st.code(traceback.format_exc())
                 
                 # Add to chat history
                 st.session_state.messages = add_message_to_history(

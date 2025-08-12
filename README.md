@@ -47,9 +47,9 @@ demo/
 ## Features
 
 - **Interactive UI**: Clean, user-friendly interface with Streamlit
-- **Data Visualization**: Powerful visualizations using Seaborn
+- **Data Visualization**: Beautiful visualizations with Seaborn
 - **AI Assistance**: LangChain agent that helps interpret data and suggest visualizations
-- **Educational Design**: Well-structured code for teaching data visualization concepts
+- **Educational Design**: Minimal code for teaching AI agent development and data visualization concepts
 - **Modular Architecture**: Easy to extend with new visualization types
 
 ## Visualization Capabilities
@@ -77,7 +77,7 @@ For more detailed information, see the documentation in the `docs/` directory:
 
 ## For Teaching
 
-This project is designed for educational purposes, focusing on data visualization concepts:
+This project is designed for educational purposes, focusing on AI agent development and data visualization concepts:
 
 - **Exploratory Data Analysis**: Learn how to examine datasets visually
 - **Statistical Insights**: Interpret data through visualizations
@@ -88,7 +88,7 @@ This project is designed for educational purposes, focusing on data visualizatio
 
 The Dockerfile is configured to automatically generate the requirements.txt file during the build process using the dependencies specified in pyproject.toml. This ensures that the Docker container always has the most up-to-date dependencies without requiring manual updates to requirements.txt.
 
-To build the Docker image, simply run:
+To build the Docker image, run:
 
 ```bash
 docker build -t hyd2025-demo .
@@ -123,6 +123,7 @@ plot_histogram: {"column": "P1", "bins": 30}
 ```
 
 Parameters:
+
 - `columns`: List of columns or 'all' for all numeric columns
 - `iqr_multiplier`: Multiplier for IQR to determine outlier threshold (default: 1.5)
 - `drop_outliers`: Whether to drop outliers (true) or replace them (false)
@@ -148,6 +149,7 @@ load_processed_data: {"latest": false}
 ```
 
 Parameters:
+
 - `filename`: Optional specific filename to load
 - `latest`: If true and no filename provided, loads the most recent file. If false, lists all available files.
 
