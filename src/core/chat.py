@@ -100,22 +100,3 @@ def get_messages_for_llm() -> List[Dict[str, str]]:
                 messages.append({"role": "assistant", "content": msg.content})
     
     return messages
-
-def process_user_message(history: List[Dict[str, str]], user_message: str) -> str:
-    """
-    Process a user message and generate a response.
-    
-    Args:
-        history (List[Dict[str, str]]): Current chat history
-        user_message (str): Message from the user
-        
-    Returns:
-        str: Response from the assistant
-    """
-    # Add user message to history
-    updated_history = add_message_to_history(history, "user", user_message)
-    
-    # Get response from LLM
-    response = get_openai_response(get_messages_for_llm())
-    
-    return response
