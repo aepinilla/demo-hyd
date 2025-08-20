@@ -64,25 +64,27 @@ def load_dataset(file_path: str) -> str:
         
         # Return information about the dataset
         return f"""
-## Dataset Loaded Successfully
+                ## Dataset Loaded Successfully
 
-**Source:** {source}
-**Shape:** {df.shape[0]} rows × {df.shape[1]} columns
-**Columns:** {', '.join(df.columns.tolist())}
+                **Source:** {source}
+                **Shape:** {df.shape[0]} rows × {df.shape[1]} columns
+                **Columns:** {', '.join(df.columns.tolist())}
 
-**Column Types:**
-```
-{df.dtypes.to_string()}
-```
+                **Column Types:**
+                ```
+                {df.dtypes.to_string()}
+                ```
 
-**Sample Data:**
-```
-{df.head(5).to_string()}
+                **Sample Data:**
+                ```
+                {df.head(5).to_string()}
 ```
         """
     except Exception as e:
         return f"Error loading dataset: {str(e)}"
 
+# ===== CUSTOMIZE VISUALIZATION FUNCTIONS HERE =====
+# You can add, remove, or modify visualization functions as needed.
 def plot_histogram(column: Optional[str] = None, bins: int = 10, title: str = "Histogram") -> str:
     """
     Create a histogram using Seaborn and display it in Streamlit.
@@ -183,15 +185,15 @@ def plot_histogram(column: Optional[str] = None, bins: int = 10, title: str = "H
             return f"Error creating histogram: {str(e)}"
         
         return f"""
-## Histogram for '{column}'
+                ## Histogram for '{column}'
 
-**Statistics:**
-- **Mean:** {stats['mean']:.2f}
-- **Median:** {stats['50%']:.2f}
-- **Std Dev:** {stats['std']:.2f}
-- **Min:** {stats['min']:.2f}
-- **Max:** {stats['max']:.2f}
-        """
+                **Statistics:**
+                - **Mean:** {stats['mean']:.2f}
+                - **Median:** {stats['50%']:.2f}
+                - **Std Dev:** {stats['std']:.2f}
+                - **Min:** {stats['min']:.2f}
+                - **Max:** {stats['max']:.2f}
+                        """
     except Exception as e:
         import traceback
         st.error(f"Error creating histogram: {str(e)}")
@@ -373,6 +375,7 @@ A correlation coefficient of {correlation:.4f} indicates a {"strong" if abs(corr
         st.error(traceback.format_exc())
         return f"Error creating scatter plot: {str(e)}"
 
+
 def get_column_types(columns: str | None = None) -> str:
     """
     Get the data types of columns in the dataset.
@@ -486,6 +489,7 @@ def get_column_types(columns: str | None = None) -> str:
     except Exception as e:
         return f"Error getting column types: {str(e)}"
         
+
 def match_variables_with_llm(variables_to_plot: str, df: pd.DataFrame) -> list:
     """
     Use an LLM to understand which variables the user is asking for and match them with
@@ -912,5 +916,3 @@ def plot_sensor_map(value_column: str = "P1", title: str = "Sensor Map") -> str:
         st.error(traceback.format_exc())
         return f"Error creating map visualization: {str(e)}"
 
-
-# Time series and dashboard functions have been removed as requested

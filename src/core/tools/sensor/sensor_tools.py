@@ -1,6 +1,9 @@
 from typing import List
 from langchain.tools import StructuredTool
 
+# ===== CUSTOMIZE SENSOR TOOLS SECTION =====
+# These imports define the available sensor data tools
+# To add a new tool, create a new function in this directory and import it here
 from .get_sensor_variable_stats import get_sensor_variable_stats
 from .prepare_sensor_data_for_visualization import prepare_sensor_data_for_visualization
 from .plot_sensor_histogram import plot_sensor_histogram
@@ -11,6 +14,9 @@ from src.utils.sensor_api import fetch_latest_data, get_sensor_types
 from src.utils.remove_outliers import remove_outliers_iqr
 from src.utils.visualization import plot_sensor_map
 
+# ===== CUSTOMIZE AVAILABLE SENSOR TOOLS HERE =====
+# This function defines which tools are available to the AI assistant
+# Add or remove tools from this list to change what the AI can do with sensor data
 def get_sensor_tools() -> List[StructuredTool]:
     """
     Get the list of sensor data visualization tools.

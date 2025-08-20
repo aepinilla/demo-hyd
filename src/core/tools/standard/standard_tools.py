@@ -30,6 +30,8 @@ from src.utils.remove_outliers import remove_outliers_iqr
 # Import processed data loading utility
 from src.utils.load_processed_data import load_processed_data
 
+# ===== CUSTOMIZE TOOL INPUT SCHEMAS HERE =====
+# These schemas define what parameters each tool accepts
 # Core visualization input schemas
 class LoadDataInput(BaseModel):
     """Input schema for loading a dataset."""
@@ -94,6 +96,7 @@ class FetchLatestDataInput(BaseModel):
         description="Time period to analyze ('24h', '7d', '30d')"
     )
 
+# ===== CUSTOMIZE (ADD/MODIFY) TOOLS HERE =====
 def get_standard_tools() -> List[StructuredTool]:
     """
     Get the list of standard data visualization tools.
@@ -101,6 +104,7 @@ def get_standard_tools() -> List[StructuredTool]:
     Returns:
         List[StructuredTool]: A list of data visualization tool objects
     """
+    # Add or remove tools in this list to change what the AI can do
     return [
         StructuredTool.from_function(
             func=load_dataset,
