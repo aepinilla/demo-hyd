@@ -13,6 +13,7 @@ import streamlit as st
 import json
 import plotly.express as px
 import plotly.graph_objects as go
+import random
 from typing import List, Dict, Any, Optional
 from src.utils.dataframe_utils import prepare_dataframe_for_streamlit
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
@@ -121,7 +122,24 @@ with col2:
     st.markdown("<hr>", unsafe_allow_html=True)
     
     # Tabs for different types of examples
-    sensor_tab, data_tab = st.tabs(["Sensor.Community", "Dataset Examples"])
+    data_tab, sensor_tab = st.tabs(["Dataset Examples", "Sensor.Community"])
+    
+    with data_tab:
+        # Dataset examples
+        dataset_examples = [
+            "Show a histogram of the first numeric column",
+            "Create a scatter plot comparing the first two numeric columns",
+            "Plot a correlation heatmap for all numeric columns",
+        ]
+        
+        # Randomize the order of dataset examples
+        random.shuffle(dataset_examples)
+        
+        for i, example in enumerate(dataset_examples):
+            if st.button(example, key=f"example_dataset_{i}"):
+                # Store the example query in session state and force rerun
+                st.session_state["user_input"] = example
+                st.rerun()
     
     with sensor_tab:
         st.markdown("### Data Fetching & Visualization")
@@ -132,12 +150,18 @@ with col2:
             "Get the latest particulate matter readings from dust sensors"
         ]
         
+        # Randomize the order of sensor examples
+        random.shuffle(sensor_examples)
+        
         # Add buttons for the first set of examples
         st.markdown("### Map Visualizations")
         map_examples = [
             "Create an interactive map showing P1 (PM10) pollution levels across sensor locations",
             "Show a map visualization of P2 (PM2.5) concentrations with color gradient",
         ]
+        
+        # Randomize the order of map examples
+        random.shuffle(map_examples)
         
         # Time Series Analysis section removed as requested
         
@@ -154,20 +178,6 @@ with col2:
                 st.rerun()
                 
         # Time Series example buttons removed as requested
-
-    with data_tab:
-        # Dataset examples
-        dataset_examples = [
-            "Show a histogram of the first numeric column",
-            "Create a scatter plot comparing the first two numeric columns",
-            "Plot a correlation heatmap for all numeric columns",
-        ]
-        
-        for i, example in enumerate(dataset_examples):
-            if st.button(example, key=f"example_dataset_{i}"):
-                # Store the example query in session state and force rerun
-                st.session_state["user_input"] = example
-                st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
 
