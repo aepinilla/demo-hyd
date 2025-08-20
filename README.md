@@ -5,23 +5,55 @@ A Streamlit-based data visualization assistant designed for teaching data analys
 ## Project Structure
 
 ```
-demo/
-├── app.py                  # Main application entry point
-├── examples/               # Example scripts & data
-│   ├── sample_data.csv     # Sample dataset for demonstration
-├── docs/                   # Documentation
-│   ├── setup.md            # Setup instructions
-│   ├── usage.md            # Usage guide
-│   └── troubleshooting.md  # Common issues and solutions
-└── src/                    # Source code
-    ├── config/             # Configuration settings
-    ├── core/               # LangChain agent integration
-    │   ├── agents.py       # Agent creation and execution
-    │   └── tools.py        # Visualization tools definition
-    ├── ui/                 # UI components
-    ├── utils/              # Utility functions
-    │   └── visualization.py # Data visualization functions
-    └── schemas/            # Data models
+.
+├── .streamlit/            # Streamlit configuration
+│   ├── config.toml        # Streamlit config settings
+│   └── custom.css         # Custom CSS for the Streamlit app
+├── app.py                 # Main application entry point
+├── cloudbuild.yaml        # Cloud Build configuration
+├── Dockerfile             # Docker configuration for containerization
+├── env.example            # Example environment variables
+├── launch_config.json     # Launch configuration
+├── pyproject.toml         # Project dependencies and metadata
+├── README.md              # Project documentation
+├── requirements.txt       # Generated Python dependencies
+├── src/                   # Source code
+│   ├── config/            # Configuration settings
+│   │   └── settings.py    # Application settings
+│   ├── core/              # LangChain agent integration
+│   │   ├── agents.py      # Agent creation and execution
+│   │   ├── chat.py        # Chat functionality
+│   │   ├── custom_parser.py # Custom parsing logic
+│   │   ├── fallback_handler.py # Fallback logic for errors
+│   │   ├── llm.py         # Language model integration
+│   │   └── tools/         # Visualization tools
+│   │       ├── sensor/    # Sensor-specific tools
+│   │       │   ├── get_sensor_variable_stats.py
+│   │       │   ├── plot_sensor_heatmap.py
+│   │       │   ├── plot_sensor_histogram.py
+│   │       │   ├── plot_sensor_scatter.py
+│   │       │   ├── prepare_sensor_data_for_visualization.py
+│   │       │   ├── sensor_tools.py
+│   │       │   └── sync_sensor_data.py
+│   │       ├── standard/  # Standard visualization tools
+│   │       │   └── standard_tools.py
+│   │       └── tools.py   # Tools registration and configuration
+│   ├── schemas/           # Data models
+│   │   └── models.py      # Data schemas and models
+│   ├── ui/                # UI components
+│   │   ├── components.py  # Streamlit UI components
+│   │   └── logos/         # Logo assets
+│   └── utils/             # Utility functions
+│       ├── auto_load.py   # Automatic data loading
+│       ├── data_bridge.py # Data transfer utilities
+│       ├── dataframe_utils.py # DataFrame manipulation
+│       ├── debug_utils.py # Debugging utilities
+│       ├── load_processed_data.py # Data loading utilities
+│       ├── remove_outliers.py # Data cleaning utilities
+│       ├── sensor_api.py  # Sensor API integration
+│       ├── time_series.py # Time series utilities
+│       └── visualization.py # Data visualization functions
+└── uv.lock                # Package lock file
 ```
 
 ## Quick Start
