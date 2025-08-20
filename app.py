@@ -14,6 +14,7 @@ import json
 import plotly.express as px
 import plotly.graph_objects as go
 import random
+import os
 from typing import List, Dict, Any, Optional
 from src.utils.dataframe_utils import prepare_dataframe_for_streamlit
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
@@ -108,6 +109,30 @@ if "dataset" not in st.session_state:
 # Initialize user_input in session state if not present
 if "user_input" not in st.session_state:
     st.session_state.user_input = ""
+    
+# Initialize examples in session state to maintain consistent order
+if "dataset_examples" not in st.session_state:
+    st.session_state.dataset_examples = [
+        "Show a histogram of the first numeric column",
+        "Create a scatter plot comparing the first two numeric columns",
+        "Plot a correlation heatmap for all numeric columns",
+    ]
+    random.shuffle(st.session_state.dataset_examples)
+    
+if "sensor_examples" not in st.session_state:
+    st.session_state.sensor_examples = [
+        "What variables are available in the sensor API and show their statistics",
+        "Fetch the latest sensor data and show a summary",
+        "Get the latest particulate matter readings from dust sensors"
+    ]
+    random.shuffle(st.session_state.sensor_examples)
+    
+if "map_examples" not in st.session_state:
+    st.session_state.map_examples = [
+        "Create an interactive map showing P1 (PM10) pollution levels across sensor locations",
+        "Show a map visualization of P2 (PM2.5) concentrations with color gradient",
+    ]
+    random.shuffle(st.session_state.map_examples)
 
 # Main content section
 st.markdown('<div class="content-section">', unsafe_allow_html=True)
@@ -125,17 +150,8 @@ with col2:
     data_tab, sensor_tab = st.tabs(["Dataset Examples", "Sensor.Community"])
     
     with data_tab:
-        # Dataset examples
-        dataset_examples = [
-            "Show a histogram of the first numeric column",
-            "Create a scatter plot comparing the first two numeric columns",
-            "Plot a correlation heatmap for all numeric columns",
-        ]
-        
-        # Randomize the order of dataset examples
-        random.shuffle(dataset_examples)
-        
-        for i, example in enumerate(dataset_examples):
+        # Use dataset examples from session state to maintain consistency
+        for i, example in enumerate(st.session_state.dataset_examples):
             if st.button(example, key=f"example_dataset_{i}"):
                 # Store the example query in session state and force rerun
                 st.session_state["user_input"] = example
@@ -143,35 +159,19 @@ with col2:
     
     with sensor_tab:
         st.markdown("### Data Fetching & Visualization")
-        sensor_examples = [
-            # "Show the latest SDS011 dust sensor readings for P1 and P2",  # Confirmed sensor type
-            "What variables are available in the sensor API and show their statistics",
-            "Fetch the latest sensor data and show a summary",
-            "Get the latest particulate matter readings from dust sensors"
-        ]
         
-        # Randomize the order of sensor examples
-        random.shuffle(sensor_examples)
-        
-        # Add buttons for the first set of examples
-        st.markdown("### Map Visualizations")
-        map_examples = [
-            "Create an interactive map showing P1 (PM10) pollution levels across sensor locations",
-            "Show a map visualization of P2 (PM2.5) concentrations with color gradient",
-        ]
-        
-        # Randomize the order of map examples
-        random.shuffle(map_examples)
-        
-        # Time Series Analysis section removed as requested
-        
-        for i, example in enumerate(sensor_examples):
+        # Use sensor examples from session state to maintain consistency
+        for i, example in enumerate(st.session_state.sensor_examples):
             if st.button(example, key=f"example_general_{i}"):
                 # Store the example query in session state and force rerun
                 st.session_state["user_input"] = example
                 st.rerun()
-                
-        for i, example in enumerate(map_examples):
+        
+        # Add buttons for map examples
+        st.markdown("### Map Visualizations")
+        
+        # Use map examples from session state to maintain consistency
+        for i, example in enumerate(st.session_state.map_examples):
             if st.button(example, key=f"example_map_{i}"):
                 # Store the example query in session state and force rerun
                 st.session_state["user_input"] = example
