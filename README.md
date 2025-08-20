@@ -58,6 +58,10 @@ A Streamlit-based data visualization assistant designed for teaching data analys
 
 ## Quick Start
 
+For detailed installation instructions on both macOS and Windows, see [INSTALLATION.md](INSTALLATION.md).
+
+Quick setup:
+
 1. Install the required packages:
 
    ```bash
@@ -71,7 +75,15 @@ A Streamlit-based data visualization assistant designed for teaching data analys
    # Edit .env with your OpenAI API key
    ```
 
-3. Run the Streamlit app:
+3. Activate the virtual environment:
+   ```bash
+   # On macOS/Linux
+   source .venv/bin/activate
+   # On Windows
+   .venv\Scripts\activate
+   ```
+
+4. Run the Streamlit app:
    ```bash
    streamlit run app.py
    ```
